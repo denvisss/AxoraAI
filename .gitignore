@@ -1,0 +1,31 @@
+# Gradle
+build/
+.gradle/
+.gradle/*.tmp
+.gradle/*.*.tmp
+
+# Android
+app/build/
+!app/release/
+.idea/
+*.iml
+*.apk
+*.kotlin
+
+# Android Studio
+captures/
+.externalNativeBuild
+.cxx
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Generated files
+app/src/main/java/com/imageai/app/data/local/AppDatabase.db
+*.jks
+*.keystore
+
+# Secrets
+local.properties
