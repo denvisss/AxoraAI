@@ -14,6 +14,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Axora"
+rootProject.name = "AxoraAI"
 include(":app")
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
