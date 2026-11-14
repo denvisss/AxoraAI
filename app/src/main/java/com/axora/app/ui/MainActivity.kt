@@ -20,7 +20,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.lifecycleScope
 import com.axora.app.AxoraApplication
+import com.axora.app.BuildConfig
 import com.axora.app.data.repository.SettingsRepository
 import com.axora.app.ui.settings.SettingsScreen
 import com.axora.app.ui.theme.AxoraTheme
@@ -28,6 +30,7 @@ import com.axora.app.ui.viewmodel.ChatViewModel
 import com.axora.app.ui.viewmodel.ChatViewModelFactory
 import com.axora.app.ui.viewmodel.SettingsViewModel
 import com.axora.app.ui.viewmodel.SettingsViewModelFactory
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -40,6 +43,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val app = application as AxoraApplication
+        lifecycleScope.launch { app.updateManager.autoCheckIfDue(BuildConfig.VERSION_NAME) }
         val chatViewModel: ChatViewModel by viewModels { ChatViewModelFactory(app.repository, this) }
         val settingsViewModel: SettingsViewModel by viewModels {
             SettingsViewModelFactory(app.settingsRepository, app.mediaStorage, app.updateManager)

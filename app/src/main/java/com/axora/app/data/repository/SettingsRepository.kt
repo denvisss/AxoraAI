@@ -96,6 +96,19 @@ class SettingsRepository(private val context: Context) {
         appPrefs.edit { putString(KEY_APP_LANGUAGE, language) }
     }
 
+    fun getLastUpdateCheck(): Long = appPrefs.getLong(KEY_LAST_UPDATE_CHECK, 0L)
+
+    fun setLastUpdateCheck(timestamp: Long) {
+        appPrefs.edit { putLong(KEY_LAST_UPDATE_CHECK, timestamp) }
+    }
+
+    fun getAvailableUpdateTag(): String? =
+        appPrefs.getString(KEY_AVAILABLE_UPDATE_TAG, null)?.takeIf { it.isNotBlank() }
+
+    fun setAvailableUpdateTag(tag: String?) {
+        appPrefs.edit { putString(KEY_AVAILABLE_UPDATE_TAG, tag) }
+    }
+
     companion object {
         const val FREE_IMAGE_MODEL = "free"
         const val DEFAULT_IMAGE_MODEL = "black-forest-labs/flux.2-klein-4b"
@@ -114,6 +127,8 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_DARK_THEME = "dark_theme"
         private const val KEY_IMAGE_FORMAT = "image_format"
         private const val KEY_APP_LANGUAGE = "app_language"
+        private const val KEY_LAST_UPDATE_CHECK = "last_update_check"
+        private const val KEY_AVAILABLE_UPDATE_TAG = "available_update_tag"
 
         fun wrapLocale(context: Context): Context {
             val language = context.getSharedPreferences(APP_PREFS_NAME, Context.MODE_PRIVATE)

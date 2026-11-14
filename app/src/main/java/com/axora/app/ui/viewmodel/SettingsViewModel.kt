@@ -23,6 +23,7 @@ data class SettingsUiState(
     val language: String = SettingsRepository.DEFAULT_LANGUAGE,
     val mediaSize: Long = 0L,
     val keyStorageEncrypted: Boolean = true,
+    val availableUpdateTag: String = "",
     val update: UpdateUiState = UpdateUiState()
 )
 
@@ -60,7 +61,10 @@ class SettingsViewModel(
                 autoTranslate = settings.isAutoTranslateEnabled(),
                 darkTheme = settings.isDarkThemeEnabled(),
                 language = settings.getAppLanguage(),
-                keyStorageEncrypted = settings.isKeyStorageEncrypted
+                keyStorageEncrypted = settings.isKeyStorageEncrypted,
+                availableUpdateTag = settings.getAvailableUpdateTag()
+                    ?.takeIf { UpdateManager.isNewerVersion(it, BuildConfig.VERSION_NAME) }
+                    .orEmpty()
             )
         }
         viewModelScope.launch {
@@ -110,8 +114,14 @@ class SettingsViewModel(
         _uiState.update { it.copy(update = UpdateUiState(status = UpdateStatus.Checking)) }
         viewModelScope.launch {
             val result = runCatching { updateManager.findUpdate(BuildConfig.VERSION_NAME) }
+            result.onSuccess { settings.setAvailableUpdateTag(it?.tagName) }
             _uiState.update { state ->
                 state.copy(
+                    availableUpdateTag = if (result.isSuccess) {
+                        result.getOrNull()?.tagName.orEmpty()
+                    } else {
+                        state.availableUpdateTag
+                    },
                     update = result.fold(
                         onSuccess = { release ->
                             if (release == null) {

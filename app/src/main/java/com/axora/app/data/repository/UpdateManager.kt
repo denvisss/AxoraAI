@@ -15,8 +15,21 @@ import java.security.MessageDigest
 class UpdateManager(
     private val gitHubApi: GitHubApiService,
     private val client: OkHttpClient,
-    private val context: Context
+    private val context: Context,
+    private val settings: SettingsRepository
 ) {
+
+    suspend fun autoCheckIfDue(currentVersion: String) = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        if (!isCheckDue(settings.getLastUpdateCheck(), now)) return@withContext
+        val release = try {
+            findUpdate(currentVersion)
+        } catch (_: IOException) {
+            return@withContext
+        }
+        settings.setLastUpdateCheck(now)
+        settings.setAvailableUpdateTag(release?.tagName)
+    }
 
     suspend fun findUpdate(currentVersion: String): GitHubRelease? = withContext(Dispatchers.IO) {
         try {
@@ -75,6 +88,10 @@ class UpdateManager(
     private class ChecksumMismatchException : Exception()
 
     companion object {
+        const val CHECK_INTERVAL_MS = 24L * 60 * 60 * 1000
+
+        fun isCheckDue(lastCheck: Long, now: Long): Boolean = now - lastCheck >= CHECK_INTERVAL_MS
+
         fun select(releases: List<GitHubRelease>, currentVersion: String): GitHubRelease? =
             releases.firstOrNull { release ->
                 !release.draft &&

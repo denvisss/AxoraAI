@@ -19,7 +19,7 @@ Android-клиент для генерации медиа по текстово�
 - **Управление историей.** Room-хранилище по вкладкам: редактирование и удаление сообщений, повтор при ошибке, очистка чата, очистка всех сгенерированных файлов с сохранением истории.
 - **Оформление.** Material 3, светлая и тёмная темы с сохранением выбора.
 - **Язык интерфейса.** Русский по умолчанию независимо от языка системы; переключение на английский в настройках с сохранением выбора.
-- **Обновления из GitHub.** Пункт «Обновление приложения» проверяет релизы репозитория, скачивает APK с прогрессом и сверкой SHA-256 и устанавливает его обновлением поверх текущей версии.
+- **Обновления из GitHub.** Фоновая автопроверка релизов репозитория не чаще раза в 24 часа; предложение обновиться появляется только в настройках. Пункт «Обновление приложения» скачивает APK с прогрессом и сверкой SHA-256 и устанавливает его обновлением поверх текущей версии.
 
 ## Модели и стоимость
 
@@ -48,7 +48,7 @@ Android-клиент для генерации медиа по текстово�
 - Ключ хранится в `EncryptedSharedPreferences` (AES256-GCM/SIV) и не попадает в бэкап.
 - Передаётся только в заголовке `Authorization: Bearer …`; в логах заголовок редактируется (`redactHeader`).
 - Ключ не содержится в исходном коде, ресурсах и сборочных файлах; в репозитории только тестовый placeholder.
-- `local.properties`, keystores и артефакты сборки исключены из VCS (`.gitignore`).
+- `local.properties` и артефакты сборки исключены из VCS (`.gitignore`).
 
 ## Технологии
 
@@ -83,7 +83,7 @@ app/src/main/java/com/axora/app/
 │   │   ├── dao/ChatDao.kt     # запросы истории и очистки медиа
 │   │   └── entity/ChatMessageEntity.kt
 │   ├── network/               # Retrofit-сервисы (image/text/video/audio), TranslationClient, ImageEditBody (streaming base64)
-│   └── repository/            # ChatRepository (интерфейс), DefaultChatRepository, SettingsRepository, MediaStorage
+│   └── repository/            # ChatRepository (интерфейс), DefaultChatRepository, SettingsRepository, MediaStorage, UpdateManager
 ├── di/NetworkModule.kt        # OkHttp/Retrofit, редакция Authorization
 ├── domain/model/              # ChatMessage, ChatUiState, GenerationType, ImageFormat
 ├── ui/
@@ -115,19 +115,6 @@ Release (R8 + shrinkResources):
 ./gradlew assembleRelease
 ```
 
-### Подпись релиза
-
-Без keystore собирается неподписанный APK (`app-release-unsigned.apk`). Для подписанной сборки:
-
-1. Создайте keystore (один раз):
-
-```bash
-keytool -genkeypair -v -keystore axora-release.jks -alias axora -keyalg RSA -keysize 2048 -validity 10000
-```
-
-2. Скопируйте `keystore.properties.example` в `keystore.properties` (корень проекта) и укажите путь к keystore и пароли. Оба файла (`*.jks`, `keystore.properties`) исключены из VCS.
-3. Соберите: `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`.
-
 Установка на устройство/эмулятор:
 
 ```bash
@@ -148,7 +135,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 1. Получите ключ (`sk_…`) на [enter.pollinations.ai/keys](https://enter.pollinations.ai/keys).
 2. «Настройки» → «Подключение» → вставьте ключ и выберите модели изображений и текста.
 3. Без ключа работают бесплатные модели; поле ключа блокируется, когда выбраны только бесплатные модели.
-4. Главные настройки: тема, язык приложения (русский по умолчанию), автосохранение в галерею, автоперевод промптов, очистка памяти, проверка обновлений, «О приложении».
+4. Главные настройки: тема, язык приложения (русский по умолчанию), автосохранение в галерею, автоперевод промптов, очистка памяти, обновление приложения (автопроверка раз в 24 часа), «О приложении».
 
 ## Лицензия и атрибуция
 

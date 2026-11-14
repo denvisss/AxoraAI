@@ -154,6 +154,7 @@ fun SettingsScreen(
                         language = state.language,
                         onLanguageChange = onLanguageChange,
                         update = state.update,
+                        updateTag = state.availableUpdateTag,
                         onCheckUpdate = viewModel::checkForUpdate,
                         onDownloadUpdate = viewModel::downloadUpdate,
                         mediaSize = state.mediaSize,
@@ -178,6 +179,7 @@ private fun MainSettings(
     language: String,
     onLanguageChange: (String) -> Unit,
     update: UpdateUiState,
+    updateTag: String,
     onCheckUpdate: () -> Unit,
     onDownloadUpdate: () -> Unit,
     mediaSize: Long,
@@ -414,6 +416,9 @@ private fun MainSettings(
         LinkRow(
             icon = Icons.Rounded.SystemUpdateAlt,
             title = stringResource(R.string.update_title),
+            subtitle = (if (update.status == UpdateStatus.Available) update.version else updateTag)
+                .takeIf { it.isNotEmpty() }
+                ?.let { stringResource(R.string.update_available, it) },
             trailingIcon = Icons.Rounded.ChevronRight,
             onClick = {
                 val status = update.status
@@ -695,7 +700,8 @@ private fun LinkRow(
     icon: ImageVector,
     title: String,
     trailingIcon: ImageVector,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    subtitle: String? = null
 ) {
     val scheme = MaterialTheme.colorScheme
     Surface(
@@ -715,12 +721,20 @@ private fun LinkRow(
                 tint = scheme.primary,
                 modifier = Modifier.size(20.dp)
             )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                color = scheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = scheme.onSurface
+                )
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.primary
+                    )
+                }
+            }
             Icon(
                 imageVector = trailingIcon,
                 contentDescription = null,

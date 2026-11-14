@@ -28,7 +28,7 @@ class AxoraApplication : Application() {
     val mediaStorage: MediaStorage by lazy { MediaStorage(database.chatDao(), this) }
 
     val updateManager: UpdateManager by lazy {
-        UpdateManager(NetworkModule.gitHubApiService, NetworkModule.httpClient, this)
+        UpdateManager(NetworkModule.gitHubApiService, NetworkModule.httpClient, this, settingsRepository)
     }
 
     val repository: ChatRepository by lazy {

@@ -54,6 +54,15 @@ class UpdateManagerTest {
         assertNull(UpdateManager.select(releases, "1.3.0"))
     }
 
+    @Test
+    fun autoCheckIsDueOnlyAfter24Hours() {
+        val now = 1_700_000_000_000L
+        assertTrue(UpdateManager.isCheckDue(0L, now))
+        assertTrue(UpdateManager.isCheckDue(now - UpdateManager.CHECK_INTERVAL_MS, now))
+        assertFalse(UpdateManager.isCheckDue(now - UpdateManager.CHECK_INTERVAL_MS + 1, now))
+        assertFalse(UpdateManager.isCheckDue(now, now))
+    }
+
     private fun release(
         tag: String,
         draft: Boolean = false,
