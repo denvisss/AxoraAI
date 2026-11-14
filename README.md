@@ -1,8 +1,7 @@
-[![Made with pollinations.ai](https://raw.githubusercontent.com/pollinations/pollinations/main/packages/ui/src/brand/badge-made-with.svg)](https://pollinations.ai/?ref=badge)
-
 # Axora
 
 [![Android CI](https://github.com/denvisss/AxoraAI/actions/workflows/android.yml/badge.svg)](https://github.com/denvisss/AxoraAI/actions/workflows/android.yml)
+[![Made with pollinations.ai](https://raw.githubusercontent.com/pollinations/pollinations/main/packages/ui/src/brand/badge-made-with.svg)](https://pollinations.ai/?ref=badge)
 
 Android-клиент для генерации медиа по текстовому промпту: изображения и текст доступны сейчас, видео и аудио запланированы в следующих обновлениях. Генерация выполняется через публичный API [pollinations.ai](https://pollinations.ai). Интерфейс на русском и английском: русский по умолчанию, выбор языка в настройках.
 
