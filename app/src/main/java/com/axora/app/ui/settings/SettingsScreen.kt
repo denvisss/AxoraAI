@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
@@ -72,6 +73,7 @@ private const val MODEL_KLEIN = "black-forest-labs/flux.2-klein-4b"
 private const val MODEL_KONTEXT = "black-forest-labs/flux.1-kontext-pro"
 private const val MODEL_FLUX_PRO = "black-forest-labs/flux.2-pro"
 private const val TEXT_MODEL_QWEN = "qwen/qwen3guard-gen-8b"
+private const val FEEDBACK_URL = "https://github.com/denvisss/AxoraAI/discussions/1"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -448,6 +450,15 @@ private fun MainSettings(
                     putExtra(Intent.EXTRA_TEXT, shareText)
                 }
                 context.startActivity(Intent.createChooser(intent, shareTitle))
+            }
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        LinkRow(
+            icon = Icons.Rounded.Forum,
+            title = stringResource(R.string.about_feedback),
+            trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
+            onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, FEEDBACK_URL.toUri()))
             }
         )
         Spacer(modifier = Modifier.height(12.dp))

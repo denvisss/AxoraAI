@@ -146,6 +146,7 @@
     <string name="about_site">Pollinations website</string>
     <string name="about_share">Share the app</string>
     <string name="about_share_text">Axora — image and text generation via Pollinations AI. https://pollinations.ai</string>
+    <string name="about_feedback">Contact the developer</string>
     <string name="about_disclaimer">An independent open-source project, not affiliated with Pollinations.ai. Media is generated via the public pollinations.ai API; access keys are issued by the service and stored encrypted on the device.</string>
     <string name="about_license">MIT License © 2026 denvisss. Attribution to the author and the original AxoraAI project is required.</string>
 
