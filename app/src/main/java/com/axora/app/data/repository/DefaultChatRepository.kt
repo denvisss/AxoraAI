@@ -44,6 +44,9 @@ class DefaultChatRepository(
     private val context: Context
 ) : ChatRepository {
 
+    private val stringsContext: Context
+        get() = SettingsRepository.wrapLocale(context)
+
     override fun getChatHistory(type: GenerationType): Flow<List<ChatMessage>> =
         chatDao.getChatHistory(type.name).map { entities -> entities.map { it.toDomain() } }
 
@@ -110,7 +113,7 @@ class DefaultChatRepository(
             val expectedPrefix = type.name.lowercase()
             if (contentType.isNotEmpty() && !contentType.startsWith(expectedPrefix)) {
                 val errorText = runCatching { responseBody.string() }.getOrDefault("")
-                throw IOException(context.getString(R.string.error_not_media, contentType, errorText.take(200)))
+                throw IOException(stringsContext.getString(R.string.error_not_media, contentType, errorText.take(200)))
             }
 
             val dir = File(context.filesDir, "generated").apply { mkdirs() }
@@ -125,15 +128,15 @@ class DefaultChatRepository(
             }
             if (file.length() == 0L) {
                 file.delete()
-                throw IOException(context.getString(R.string.error_empty_file))
+                throw IOException(stringsContext.getString(R.string.error_empty_file))
             }
             file
         }
 
     override suspend fun editImage(source: File, instruction: String): File = withContext(Dispatchers.IO) {
         val key = settings.getApiKey().takeIf { it.isNotBlank() }
-            ?: throw IOException(context.getString(R.string.edit_key_required))
-        if (!source.exists()) throw IOException(context.getString(R.string.edit_source_missing))
+            ?: throw IOException(stringsContext.getString(R.string.edit_key_required))
+        if (!source.exists()) throw IOException(stringsContext.getString(R.string.edit_source_missing))
 
         val mime = when (source.extension.lowercase()) {
             "png" -> "image/png"
@@ -155,7 +158,7 @@ class DefaultChatRepository(
             )
         )
         val encoded = response.data?.firstOrNull()?.b64Json
-            ?: throw IOException(context.getString(R.string.error_no_edited_image))
+            ?: throw IOException(stringsContext.getString(R.string.error_no_edited_image))
         val decoded = Base64.decode(encoded, Base64.DEFAULT)
         val dir = File(context.filesDir, "generated").apply { mkdirs() }
         val file = File(dir, "image_${System.currentTimeMillis()}.${ImageSpec.imageExtension(decoded)}")
@@ -167,7 +170,7 @@ class DefaultChatRepository(
         }
         if (file.length() == 0L) {
             file.delete()
-            throw IOException(context.getString(R.string.error_empty_file))
+            throw IOException(stringsContext.getString(R.string.error_empty_file))
         }
         file
     }
@@ -176,7 +179,7 @@ class DefaultChatRepository(
         val apiKey = settings.getApiKey().takeIf { it.isNotBlank() }
         val model = settings.getTextModel()
         if (apiKey == null && model != SettingsRepository.DEFAULT_TEXT_MODEL) {
-            throw IOException(context.getString(R.string.text_key_required))
+            throw IOException(stringsContext.getString(R.string.text_key_required))
         }
         val messages = buildList {
             add(Message(role = "system", content = TEXT_SYSTEM_PROMPT))
@@ -199,7 +202,7 @@ class DefaultChatRepository(
             textApiService.generateText(request)
         }
         return response.choices?.firstOrNull()?.message?.content?.trim()?.takeIf { it.isNotEmpty() }
-            ?: throw IOException(context.getString(R.string.text_empty))
+            ?: throw IOException(stringsContext.getString(R.string.text_empty))
     }
 
     override suspend fun translateToEnglish(text: String): String =

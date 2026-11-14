@@ -1,6 +1,10 @@
 package com.axora.app.ui
 
+import android.app.LocaleManager
+import android.content.Context
+import android.os.Build
 import android.os.Bundle
+import android.os.LocaleList
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -17,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.axora.app.AxoraApplication
+import com.axora.app.data.repository.SettingsRepository
 import com.axora.app.ui.settings.SettingsScreen
 import com.axora.app.ui.theme.AxoraTheme
 import com.axora.app.ui.viewmodel.ChatViewModel
@@ -26,14 +31,18 @@ import com.axora.app.ui.viewmodel.SettingsViewModelFactory
 
 class MainActivity : ComponentActivity() {
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(SettingsRepository.wrapLocale(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         val app = application as AxoraApplication
-        val chatViewModel: ChatViewModel by viewModels { ChatViewModelFactory(app.repository, app) }
+        val chatViewModel: ChatViewModel by viewModels { ChatViewModelFactory(app.repository, this) }
         val settingsViewModel: SettingsViewModel by viewModels {
-            SettingsViewModelFactory(app.settingsRepository, app.mediaStorage)
+            SettingsViewModelFactory(app.settingsRepository, app.mediaStorage, app.updateManager)
         }
 
         setContent {
@@ -52,7 +61,16 @@ class MainActivity : ComponentActivity() {
                     if (showSettings) {
                         SettingsScreen(
                             onBack = { showSettings = false },
-                            viewModel = settingsViewModel
+                            viewModel = settingsViewModel,
+                            onLanguageChange = { language ->
+                                settingsViewModel.setAppLanguage(language)
+                                if (Build.VERSION.SDK_INT >= 33) {
+                                    getSystemService(LocaleManager::class.java).applicationLocales =
+                                        LocaleList.forLanguageTags(language)
+                                } else {
+                                    recreate()
+                                }
+                            }
                         )
                     } else {
                         ChatScreen(

@@ -2,10 +2,12 @@ package com.axora.app.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.axora.app.domain.model.ImageFormat
+import java.util.Locale
 
 class SettingsRepository(private val context: Context) {
 
@@ -87,10 +89,20 @@ class SettingsRepository(private val context: Context) {
         appPrefs.edit { putString(KEY_IMAGE_FORMAT, format.name) }
     }
 
+    fun getAppLanguage(): String =
+        appPrefs.getString(KEY_APP_LANGUAGE, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_LANGUAGE
+
+    fun setAppLanguage(language: String) {
+        appPrefs.edit { putString(KEY_APP_LANGUAGE, language) }
+    }
+
     companion object {
         const val FREE_IMAGE_MODEL = "free"
         const val DEFAULT_IMAGE_MODEL = "black-forest-labs/flux.2-klein-4b"
         const val DEFAULT_TEXT_MODEL = "openai"
+        const val LANGUAGE_RU = "ru"
+        const val LANGUAGE_EN = "en"
+        const val DEFAULT_LANGUAGE = LANGUAGE_RU
 
         private const val SECURE_PREFS_NAME = "axora_secure_prefs"
         private const val APP_PREFS_NAME = "axora_prefs"
@@ -101,5 +113,14 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_AUTO_TRANSLATE = "auto_translate"
         private const val KEY_DARK_THEME = "dark_theme"
         private const val KEY_IMAGE_FORMAT = "image_format"
+        private const val KEY_APP_LANGUAGE = "app_language"
+
+        fun wrapLocale(context: Context): Context {
+            val language = context.getSharedPreferences(APP_PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_APP_LANGUAGE, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_LANGUAGE
+            val configuration = Configuration(context.resources.configuration)
+            configuration.setLocale(Locale(language))
+            return context.createConfigurationContext(configuration)
+        }
     }
 }

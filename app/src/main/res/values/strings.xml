@@ -101,6 +101,26 @@
     <string name="connection_subtitle">Ключ Pollinations, модели изображений и текста</string>
     <string name="dark_theme_title">Тёмная тема</string>
     <string name="dark_theme_subtitle">Переключить оформление</string>
+    <string name="language_title">Язык приложения</string>
+    <string name="language_ru">Русский</string>
+    <string name="language_en">Английский</string>
+    <string name="update_title">Обновление приложения</string>
+    <string name="update_checking">Проверяем обновления…</string>
+    <string name="update_up_to_date">У вас последняя версия (%1$s)</string>
+    <string name="update_available">Доступна версия %1$s</string>
+    <string name="update_available_desc">Скачать и установить обновление поверх текущей версии?</string>
+    <string name="update_action_download">Скачать</string>
+    <string name="update_download">Скачивание… %1$d%%</string>
+    <string name="update_download_indeterminate">Скачивание обновления…</string>
+    <string name="update_ready">Обновление скачано и проверено. Установить?</string>
+    <string name="update_install">Установить</string>
+    <string name="update_later">Позже</string>
+    <string name="update_ok">ОК</string>
+    <string name="update_retry">Повторить</string>
+    <string name="update_error_check">Не удалось проверить обновления. Проверьте подключение к интернету</string>
+    <string name="update_error_download">Не удалось скачать обновление. Попробуйте ещё раз</string>
+    <string name="update_error_checksum">Файл обновления повреждён и не будет установлен</string>
+    <string name="update_allow_sources">Разрешите установку из неизвестных источников для Axora, затем нажмите «Установить» снова</string>
     <string name="footer">Генерация медиа</string>
 
     <!-- Settings: generation -->

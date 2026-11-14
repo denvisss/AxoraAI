@@ -101,6 +101,26 @@
     <string name="connection_subtitle">Pollinations key, image and text models</string>
     <string name="dark_theme_title">Dark theme</string>
     <string name="dark_theme_subtitle">Toggle appearance</string>
+    <string name="language_title">App language</string>
+    <string name="language_ru">Russian</string>
+    <string name="language_en">English</string>
+    <string name="update_title">App update</string>
+    <string name="update_checking">Checking for updates…</string>
+    <string name="update_up_to_date">You have the latest version (%1$s)</string>
+    <string name="update_available">Version %1$s is available</string>
+    <string name="update_available_desc">Download and install the update over the current version?</string>
+    <string name="update_action_download">Download</string>
+    <string name="update_download">Downloading… %1$d%%</string>
+    <string name="update_download_indeterminate">Downloading update…</string>
+    <string name="update_ready">Update downloaded and verified. Install it?</string>
+    <string name="update_install">Install</string>
+    <string name="update_later">Later</string>
+    <string name="update_ok">OK</string>
+    <string name="update_retry">Retry</string>
+    <string name="update_error_check">Could not check for updates. Check your internet connection</string>
+    <string name="update_error_download">Could not download the update. Try again</string>
+    <string name="update_error_checksum">The update file is corrupted and will not be installed</string>
+    <string name="update_allow_sources">Allow installs from unknown sources for Axora, then tap Install again</string>
     <string name="footer">Media generation</string>
 
     <!-- Settings: generation -->

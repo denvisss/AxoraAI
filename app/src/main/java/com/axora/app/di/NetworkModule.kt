@@ -3,6 +3,7 @@ package com.axora.app.di
 import com.google.gson.Gson
 import com.axora.app.BuildConfig
 import com.axora.app.data.network.AudioApiService
+import com.axora.app.data.network.GitHubApiService
 import com.axora.app.data.network.ImageApiService
 import com.axora.app.data.network.TextApiService
 import com.axora.app.data.network.TranslationClient
@@ -59,9 +60,20 @@ object NetworkModule {
             .build()
     }
 
+    private val gitHubRetrofit: Retrofit by lazy {
+        Retrofit.Builder()
+            .baseUrl("https://api.github.com/")
+            .client(baseClient)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+    }
+
+    val httpClient: OkHttpClient get() = baseClient
+
     val imageApiService: ImageApiService by lazy { imageRetrofit.create(ImageApiService::class.java) }
     val videoApiService: VideoApiService by lazy { mediaRetrofit.create(VideoApiService::class.java) }
     val audioApiService: AudioApiService by lazy { mediaRetrofit.create(AudioApiService::class.java) }
     val textApiService: TextApiService by lazy { textRetrofit.create(TextApiService::class.java) }
     val translationClient: TranslationClient by lazy { TranslationClient(baseClient, gson) }
+    val gitHubApiService: GitHubApiService by lazy { gitHubRetrofit.create(GitHubApiService::class.java) }
 }

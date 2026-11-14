@@ -1,6 +1,8 @@
 package com.axora.app.ui.settings
 
 import android.content.Intent
+import android.provider.Settings
+import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import android.text.format.Formatter
 import android.widget.Toast
@@ -30,12 +32,14 @@ import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.SaveAlt
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SmartToy
+import androidx.compose.material.icons.rounded.SystemUpdateAlt
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WbSunny
@@ -60,6 +64,9 @@ import com.axora.app.R
 import com.axora.app.data.repository.SettingsRepository
 import com.axora.app.ui.theme.AxoraGradient
 import com.axora.app.ui.viewmodel.SettingsViewModel
+import com.axora.app.ui.viewmodel.UpdateStatus
+import com.axora.app.ui.viewmodel.UpdateUiState
+import java.io.File
 
 private const val MODEL_KLEIN = "black-forest-labs/flux.2-klein-4b"
 private const val MODEL_KONTEXT = "black-forest-labs/flux.1-kontext-pro"
@@ -70,7 +77,8 @@ private const val TEXT_MODEL_QWEN = "qwen/qwen3guard-gen-8b"
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    viewModel: SettingsViewModel
+    viewModel: SettingsViewModel,
+    onLanguageChange: (String) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     var showConnection by rememberSaveable { mutableStateOf(false) }
@@ -143,6 +151,11 @@ fun SettingsScreen(
                         onAutoTranslateChange = viewModel::setAutoTranslate,
                         darkTheme = state.darkTheme,
                         onToggleDarkTheme = viewModel::setDarkTheme,
+                        language = state.language,
+                        onLanguageChange = onLanguageChange,
+                        update = state.update,
+                        onCheckUpdate = viewModel::checkForUpdate,
+                        onDownloadUpdate = viewModel::downloadUpdate,
                         mediaSize = state.mediaSize,
                         onClearMedia = viewModel::clearMedia,
                         onOpenConnection = { showConnection = true }
@@ -162,6 +175,11 @@ private fun MainSettings(
     onAutoTranslateChange: (Boolean) -> Unit,
     darkTheme: Boolean?,
     onToggleDarkTheme: (Boolean) -> Unit,
+    language: String,
+    onLanguageChange: (String) -> Unit,
+    update: UpdateUiState,
+    onCheckUpdate: () -> Unit,
+    onDownloadUpdate: () -> Unit,
     mediaSize: Long,
     onClearMedia: () -> Unit,
     onOpenConnection: () -> Unit
@@ -171,6 +189,8 @@ private fun MainSettings(
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     var showClearMediaDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
     val shareTitle = stringResource(R.string.about_share)
     val shareText = stringResource(R.string.about_share_text)
 
@@ -219,6 +239,51 @@ private fun MainSettings(
             checked = darkTheme ?: systemDark,
             onCheckedChange = onToggleDarkTheme
         )
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
+        Spacer(modifier = Modifier.height(12.dp))
+        Surface(
+            onClick = { showLanguageDialog = true },
+            color = Color.Transparent,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TonalIcon(Icons.Rounded.Language)
+                    Column {
+                        Text(
+                            text = stringResource(R.string.language_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = scheme.onSurface
+                        )
+                        Text(
+                            text = stringResource(
+                                if (language == SettingsRepository.DEFAULT_LANGUAGE) {
+                                    R.string.language_ru
+                                } else {
+                                    R.string.language_en
+                                }
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = scheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
     }
 
     Spacer(modifier = Modifier.height(20.dp))
@@ -347,6 +412,19 @@ private fun MainSettings(
         }
         Spacer(modifier = Modifier.height(12.dp))
         LinkRow(
+            icon = Icons.Rounded.SystemUpdateAlt,
+            title = stringResource(R.string.update_title),
+            trailingIcon = Icons.Rounded.ChevronRight,
+            onClick = {
+                val status = update.status
+                if (status == UpdateStatus.Idle || status == UpdateStatus.UpToDate || status == UpdateStatus.Error) {
+                    onCheckUpdate()
+                }
+                showUpdateDialog = true
+            }
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        LinkRow(
             icon = Icons.Rounded.Public,
             title = stringResource(R.string.about_site),
             trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
@@ -403,6 +481,175 @@ private fun MainSettings(
                 }
             }
         )
+    }
+
+    if (showLanguageDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text(stringResource(R.string.language_title)) },
+            text = {
+                Column {
+                    LanguageOption(
+                        title = stringResource(R.string.language_ru),
+                        selected = language == SettingsRepository.DEFAULT_LANGUAGE,
+                        onClick = {
+                            showLanguageDialog = false
+                            onLanguageChange(SettingsRepository.DEFAULT_LANGUAGE)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LanguageOption(
+                        title = stringResource(R.string.language_en),
+                        selected = language == SettingsRepository.LANGUAGE_EN,
+                        onClick = {
+                            showLanguageDialog = false
+                            onLanguageChange(SettingsRepository.LANGUAGE_EN)
+                        }
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showLanguageDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showUpdateDialog) {
+        AlertDialog(
+            onDismissRequest = { showUpdateDialog = false },
+            title = { Text(stringResource(R.string.update_title)) },
+            text = {
+                when (update.status) {
+                    UpdateStatus.Checking, UpdateStatus.Idle -> Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Text(stringResource(R.string.update_checking))
+                    }
+                    UpdateStatus.UpToDate -> Text(
+                        stringResource(R.string.update_up_to_date, BuildConfig.VERSION_NAME)
+                    )
+                    UpdateStatus.Available -> Column {
+                        Text(stringResource(R.string.update_available, update.version))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = stringResource(R.string.update_available_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant
+                        )
+                    }
+                    UpdateStatus.Downloading -> Column {
+                        Text(
+                            if (update.progress > 0) {
+                                stringResource(R.string.update_download, update.progress)
+                            } else {
+                                stringResource(R.string.update_download_indeterminate)
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { update.progress / 100f },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    UpdateStatus.Ready -> Text(stringResource(R.string.update_ready))
+                    UpdateStatus.Error -> Text(
+                        update.error ?: stringResource(R.string.update_error_check)
+                    )
+                }
+            },
+            confirmButton = {
+                when (update.status) {
+                    UpdateStatus.Available -> TextButton(onClick = onDownloadUpdate) {
+                        Text(stringResource(R.string.update_action_download))
+                    }
+                    UpdateStatus.Ready -> TextButton(
+                        onClick = {
+                            update.filePath?.let { installUpdate(context, File(it)) }
+                        }
+                    ) {
+                        Text(stringResource(R.string.update_install))
+                    }
+                    UpdateStatus.Error -> TextButton(onClick = onCheckUpdate) {
+                        Text(stringResource(R.string.update_retry))
+                    }
+                    else -> {}
+                }
+            },
+            dismissButton = {
+                if (update.status != UpdateStatus.Checking && update.status != UpdateStatus.Downloading) {
+                    TextButton(onClick = { showUpdateDialog = false }) {
+                        Text(
+                            stringResource(
+                                if (update.status == UpdateStatus.UpToDate) R.string.update_ok else R.string.update_later
+                            )
+                        )
+                    }
+                }
+            }
+        )
+    }
+}
+
+private fun installUpdate(context: android.content.Context, file: File) {
+    if (!context.packageManager.canRequestPackageInstalls()) {
+        Toast.makeText(context, R.string.update_allow_sources, Toast.LENGTH_LONG).show()
+        context.startActivity(
+            Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                "package:${context.packageName}".toUri()
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        return
+    }
+    val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, "application/vnd.android.package-archive")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    context.startActivity(intent)
+}
+
+@Composable
+private fun LanguageOption(title: String, selected: Boolean, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = if (selected) scheme.primary.copy(alpha = 0.10f) else scheme.surfaceContainerHighest,
+        border = if (selected) {
+            BorderStroke(1.5.dp, scheme.primary.copy(alpha = 0.65f))
+        } else {
+            BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.6f))
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = scheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                contentDescription = null,
+                tint = if (selected) scheme.primary else scheme.outlineVariant,
+                modifier = Modifier.size(22.dp)
+            )
+        }
     }
 }
 
