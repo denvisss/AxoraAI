@@ -1,6 +1,7 @@
 package com.axora.app.data.network
 
 import com.google.gson.annotations.SerializedName
+import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -8,18 +9,6 @@ import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
-
-data class ImageEditRequest(
-    val prompt: String,
-    val image: List<ImageInput>,
-    val model: String,
-    val size: String = "auto",
-    @SerializedName("response_format") val responseFormat: String = "b64_json"
-)
-
-data class ImageInput(
-    @SerializedName("image_url") val imageUrl: String
-)
 
 data class ImageEditResponse(
     val data: List<EditedImage>? = null
@@ -53,6 +42,6 @@ interface ImageApiService {
     @POST("https://gen.pollinations.ai/v1/images/edits")
     suspend fun editImage(
         @Header("Authorization") authorization: String,
-        @Body request: ImageEditRequest
+        @Body body: RequestBody
     ): ImageEditResponse
 }

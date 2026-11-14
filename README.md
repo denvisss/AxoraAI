@@ -1,17 +1,21 @@
 # Axora
 
-Android-клиент для генерации медиа по текстовому промпту: изображения и текст доступны сейчас, видео и аудио запланированы в следующих обновлениях. Генерация выполняется через публичный API [pollinations.ai](https://pollinations.ai).
+[![Android CI](https://github.com/denvisss/AxoraAI/actions/workflows/android.yml/badge.svg)](https://github.com/denvisss/AxoraAI/actions/workflows/android.yml)
+
+Android-клиент для генерации медиа по текстовому промпту: изображения и текст доступны сейчас, видео и аудио запланированы в следующих обновлениях. Генерация выполняется через публичный API [pollinations.ai](https://pollinations.ai). Интерфейс на русском и английском (по языку системы).
 
 > Axora — независимый open-source проект, не аффилированный с Pollinations.ai и не являющийся его официальным продуктом. Сервис предоставляет только вычислительный API и выпуск ключей доступа.
 
 ## Возможности
 
 - **Раздельные чаты по типам генерации.** Вкладки «Изображение», «Текст», «Видео», «Аудио»; у каждой свой поток истории. Видео и аудио помечены «Скоро» и недоступны до релиза.
-- **Генерация изображений.** Бесплатный режим без ключа (Flux, до 768×768) и режимы с ключом повышенного разрешения (до 1536×1536). Редактирование готового изображения по инструкции (image-to-image).
-- **Генерация текста.** Диалоговая модель без ключа (с лимитом частоты) либо модель с ключом без оплаты.
-- **Голосовой ввод.** Русский язык, семантика «удерживай — говори, отпусти — отправить» (`SpeechRecognizer`).
+- **Генерация изображений.** Бесплатный режим без ключа (Flux, до 768×768) и режимы с ключом повышенного разрешения (до 1536×1536). Форматы кадра 1:1, 3:4 и 4:3 работают в обоих режимах. Редактирование готового изображения по инструкции (image-to-image).
+- **Генерация текста.** Диалоговая модель без ключа (с лимитом частоты) либо модель с ключом без оплаты; модель учитывает контекст последних сообщений вкладки.
+- **Голосовой ввод.** Русский язык, семантика «удерживай — говори, отпусти — отправить» (`SpeechRecognizer`); для TalkBack микрофон работает как переключатель.
 - **Автоперевод промптов.** Кириллические запросы переводятся на английский перед медиа-генерацией (отключаемо).
-- **Работа с результатом.** Сохранение в галерею, «Поделиться», копирование текста, воспроизведение видео/аудио в чате, автосохранение новых медиа (отключаемо).
+- **Просмотрщик изображений.** Полноэкранный просмотр с листанием всех изображений чата, зумом до 5× и панорамированием; скачивание и «Поделиться» прямо из просмотрщика.
+- **Работа с результатом.** Сохранение в галерею, «Поделиться», копирование текста, воспроизведение видео/аудио в чате, автосохранение новых медиа (отключаемо), повторная генерация по исходному промпту («Сгенерировать ещё»).
+- **Управление генерацией.** Отмена текущей генерации кнопкой в индикаторе; частичные файлы удаляются. Индикатор отсутствия интернета.
 - **Управление историей.** Room-хранилище по вкладкам: редактирование и удаление сообщений, повтор при ошибке, очистка чата, очистка всех сгенерированных файлов с сохранением истории.
 - **Оформление.** Material 3, светлая и тёмная темы с сохранением выбора.
 
@@ -62,7 +66,7 @@ Android-клиент для генерации медиа по текстово�
 | Lifecycle / ViewModel | 2.11.0 |
 | security-crypto | 1.1.0 |
 
-Архитектура: MVVM с единым `ChatUiState`, репозиторий как единственный источник данных, DI через `NetworkModule` и `AxoraApplication`. Все сетевые и дисковые операции вне main-потока (`Dispatchers.IO`).
+Архитектура: MVVM с единым `ChatUiState`; `ChatRepository` — интерфейс, `DefaultChatRepository` — реализация (маршрутизация моделей, ключ, файлы); `SettingsRepository` — настройки и ключ, `MediaStorage` — учёт и очистка сгенерированных файлов. DI вручную через `NetworkModule` и `AxoraApplication`. Строки во ViewModel резолвятся через `StringResolver`, поэтому ViewModel тестируется на JVM без Android. Все сетевые и дисковые операции вне main-потока (`Dispatchers.IO`). Схема Room экспортируется в `app/schemas`, миграции версионируются.
 
 `compileSdk 37`, `targetSdk 36`, `minSdk 26`.
 
@@ -70,24 +74,24 @@ Android-клиент для генерации медиа по текстово�
 
 ```
 app/src/main/java/com/axora/app/
-├── AxoraApplication.kt        # процесс-синглтон ChatRepository
+├── AxoraApplication.kt        # DI: репозитории, БД, сеть
 ├── data/
 │   ├── local/
-│   │   ├── AppDatabase.kt     # Room-БД
+│   │   ├── AppDatabase.kt     # Room-БД + миграции
 │   │   ├── dao/ChatDao.kt     # запросы истории и очистки медиа
 │   │   └── entity/ChatMessageEntity.kt
-│   ├── network/               # Retrofit-сервисы (image/text/video/audio) + TranslationClient
-│   └── repository/ChatRepository.kt  # маршрутизация моделей, ключ, файлы, настройки
+│   ├── network/               # Retrofit-сервисы (image/text/video/audio), TranslationClient, ImageEditBody (streaming base64)
+│   └── repository/            # ChatRepository (интерфейс), DefaultChatRepository, SettingsRepository, MediaStorage
 ├── di/NetworkModule.kt        # OkHttp/Retrofit, редакция Authorization
-├── domain/model/              # ChatMessage, ChatUiState, GenerationType
+├── domain/model/              # ChatMessage, ChatUiState, GenerationType, ImageFormat
 ├── ui/
 │   ├── MainActivity.kt        # тема, навигация чат/настройки
-│   ├── ChatScreen.kt          # чат, ввод, голос, Snackbar
-│   ├── components/ChatComponents.kt  # вкладки, баблы, плееры
+│   ├── ChatScreen.kt          # чат, ввод, голос, просмотрщик, офлайн-баннер
+│   ├── components/            # ChatComponents (вкладки, баблы, плееры), ImageViewer (зум/пейджер)
 │   ├── settings/SettingsScreen.kt    # настройки и подменю «Подключение»
 │   ├── theme/                 # Color.kt, Theme.kt (light/dark)
-│   └── viewmodel/             # ChatViewModel, ChatViewModelFactory
-└── util/                      # SaveImageUtil (MediaStore/FileProvider), VoiceInputHelper
+│   └── viewmodel/             # ChatViewModel, SettingsViewModel, фабрики, StringResolver
+└── util/                      # SaveImageUtil (MediaStore/FileProvider), VoiceInputHelper, ImageSpec
 ```
 
 ## Требования и сборка
@@ -109,7 +113,18 @@ Release (R8 + shrinkResources):
 ./gradlew assembleRelease
 ```
 
-> Release-APK не подписан: для публикации добавьте собственный `signingConfig` в `app/build.gradle.kts`.
+### Подпись релиза
+
+Без keystore собирается неподписанный APK (`app-release-unsigned.apk`). Для подписанной сборки:
+
+1. Создайте keystore (один раз):
+
+```bash
+keytool -genkeypair -v -keystore axora-release.jks -alias axora -keyalg RSA -keysize 2048 -validity 10000
+```
+
+2. Скопируйте `keystore.properties.example` в `keystore.properties` (корень проекта) и укажите путь к keystore и пароли. Оба файла (`*.jks`, `keystore.properties`) исключены из VCS.
+3. Соберите: `./gradlew assembleRelease` → `app/build/outputs/apk/release/app-release.apk`.
 
 Установка на устройство/эмулятор:
 
@@ -120,9 +135,11 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ## Тесты и статический анализ
 
 ```bash
-./gradlew testDebugUnitTest    # unit-тесты (JUnit4)
+./gradlew testDebugUnitTest    # unit-тесты (JUnit4 + coroutines-test)
 ./gradlew lintDebug            # Android lint
 ```
+
+Покрытие: доменные модели, `ImageSpec` (размеры/форматы), сетевые сервисы и `TranslationClient` (fake-interceptor OkHttp, без реальных запросов), `ChatViewModel` (fake-репозиторий: генерация, ошибки, отмена, регенерация, контекст текста). CI (GitHub Actions) собирает debug-APK, прогоняет тесты и lint на каждый push и PR в `main`.
 
 ## Настройка в приложении
 
@@ -138,7 +155,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 Условия обязательной атрибуции: при любом распространении, форке или включении кода в сторонние продукты необходимо сохранять уведомление об авторских правах и указывать автора и исходный проект:
 
 - **Автор:** denvisss
-- **Исходный проект:** Axora (репозиторий ImageAI)
+- **Исходный проект:** Axora (репозиторий AxoraAI)
 
 Атрибуция также продублирована в приложении: «Настройки» → «О приложении».
 

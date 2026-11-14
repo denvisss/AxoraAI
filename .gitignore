@@ -29,3 +29,4 @@ app/src/main/java/com/axora/app/data/local/AppDatabase.db
 
 # Secrets
 local.properties
+keystore.properties

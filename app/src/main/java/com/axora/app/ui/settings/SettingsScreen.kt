@@ -1,7 +1,7 @@
 package com.axora.app.ui.settings
 
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import android.text.format.Formatter
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -17,6 +17,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.rounded.SaveAlt
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material.icons.rounded.Translate
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -49,34 +51,32 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.axora.app.BuildConfig
 import com.axora.app.R
-import com.axora.app.data.repository.ChatRepository
+import com.axora.app.data.repository.SettingsRepository
 import com.axora.app.ui.theme.AxoraGradient
-import kotlinx.coroutines.launch
+import com.axora.app.ui.viewmodel.SettingsViewModel
 
 private const val MODEL_KLEIN = "black-forest-labs/flux.2-klein-4b"
 private const val MODEL_KONTEXT = "black-forest-labs/flux.1-kontext-pro"
 private const val MODEL_FLUX_PRO = "black-forest-labs/flux.2-pro"
-private const val TEXT_MODEL_OPENAI = "openai"
 private const val TEXT_MODEL_QWEN = "qwen/qwen3guard-gen-8b"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    repository: ChatRepository,
-    darkTheme: Boolean,
-    onToggleDarkTheme: (Boolean) -> Unit
+    viewModel: SettingsViewModel
 ) {
-    var apiKey by remember { mutableStateOf(repository.getApiKey()) }
-    var textModel by remember { mutableStateOf(repository.getTextModel()) }
-    var imageModel by remember { mutableStateOf(repository.getImageModel()) }
+    val state by viewModel.uiState.collectAsState()
     var showConnection by rememberSaveable { mutableStateOf(false) }
     val scheme = MaterialTheme.colorScheme
+
+    LaunchedEffect(Unit) { viewModel.refresh() }
 
     BackHandler(enabled = showConnection) { showConnection = false }
 
@@ -127,18 +127,24 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 if (connection) {
                     ConnectionSettings(
-                        apiKey = apiKey,
-                        onApiKeyChange = { apiKey = it },
-                        imageModel = imageModel,
-                        onImageModelChange = { imageModel = it },
-                        textModel = textModel,
-                        onTextModelChange = { textModel = it }
+                        apiKey = state.apiKey,
+                        onApiKeySave = viewModel::setApiKey,
+                        imageModel = state.imageModel,
+                        onImageModelChange = viewModel::setImageModel,
+                        textModel = state.textModel,
+                        onTextModelChange = viewModel::setTextModel,
+                        keyStorageEncrypted = state.keyStorageEncrypted
                     )
                 } else {
                     MainSettings(
-                        repository = repository,
-                        darkTheme = darkTheme,
-                        onToggleDarkTheme = onToggleDarkTheme,
+                        autoSave = state.autoSave,
+                        onAutoSaveChange = viewModel::setAutoSave,
+                        autoTranslate = state.autoTranslate,
+                        onAutoTranslateChange = viewModel::setAutoTranslate,
+                        darkTheme = state.darkTheme,
+                        onToggleDarkTheme = viewModel::setDarkTheme,
+                        mediaSize = state.mediaSize,
+                        onClearMedia = viewModel::clearMedia,
                         onOpenConnection = { showConnection = true }
                     )
                 }
@@ -146,34 +152,24 @@ fun SettingsScreen(
             }
         }
     }
-
-    LaunchedEffect(apiKey) {
-        repository.setApiKey(apiKey)
-    }
-
-    LaunchedEffect(textModel) {
-        repository.setTextModel(textModel)
-    }
-
-    LaunchedEffect(imageModel) {
-        repository.setImageModel(imageModel)
-    }
 }
 
 @Composable
 private fun MainSettings(
-    repository: ChatRepository,
-    darkTheme: Boolean,
+    autoSave: Boolean,
+    onAutoSaveChange: (Boolean) -> Unit,
+    autoTranslate: Boolean,
+    onAutoTranslateChange: (Boolean) -> Unit,
+    darkTheme: Boolean?,
     onToggleDarkTheme: (Boolean) -> Unit,
+    mediaSize: Long,
+    onClearMedia: () -> Unit,
     onOpenConnection: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
-    var autoSave by remember { mutableStateOf(repository.isAutoSaveEnabled()) }
-    var autoTranslate by remember { mutableStateOf(repository.isAutoTranslateEnabled()) }
-    var mediaSize by remember { mutableLongStateOf(repository.generatedMediaSize()) }
     var showClearMediaDialog by remember { mutableStateOf(false) }
     val shareTitle = stringResource(R.string.about_share)
     val shareText = stringResource(R.string.about_share_text)
@@ -220,7 +216,7 @@ private fun MainSettings(
             icon = Icons.Rounded.WbSunny,
             title = stringResource(R.string.dark_theme_title),
             subtitle = stringResource(R.string.dark_theme_subtitle),
-            checked = darkTheme,
+            checked = darkTheme ?: systemDark,
             onCheckedChange = onToggleDarkTheme
         )
     }
@@ -234,10 +230,7 @@ private fun MainSettings(
             title = stringResource(R.string.auto_save_title),
             subtitle = stringResource(R.string.auto_save_subtitle),
             checked = autoSave,
-            onCheckedChange = {
-                autoSave = it
-                repository.setAutoSaveEnabled(it)
-            }
+            onCheckedChange = onAutoSaveChange
         )
         Spacer(modifier = Modifier.height(12.dp))
         HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
@@ -247,10 +240,7 @@ private fun MainSettings(
             title = stringResource(R.string.auto_translate_title),
             subtitle = stringResource(R.string.auto_translate_subtitle),
             checked = autoTranslate,
-            onCheckedChange = {
-                autoTranslate = it
-                repository.setAutoTranslateEnabled(it)
-            }
+            onCheckedChange = onAutoTranslateChange
         )
     }
 
@@ -361,7 +351,7 @@ private fun MainSettings(
             title = stringResource(R.string.about_site),
             trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
             onClick = {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://pollinations.ai")))
+                context.startActivity(Intent(Intent.ACTION_VIEW, "https://pollinations.ai".toUri()))
             }
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -400,11 +390,8 @@ private fun MainSettings(
                 TextButton(
                     onClick = {
                         showClearMediaDialog = false
-                        scope.launch {
-                            repository.clearGeneratedMedia()
-                            mediaSize = repository.generatedMediaSize()
-                            Toast.makeText(context, R.string.storage_cleared, Toast.LENGTH_SHORT).show()
-                        }
+                        onClearMedia()
+                        Toast.makeText(context, R.string.storage_cleared, Toast.LENGTH_SHORT).show()
                     }
                 ) {
                     Text(stringResource(R.string.storage_clear), color = scheme.error)
@@ -500,18 +487,26 @@ private fun LinkRow(
 @Composable
 private fun ConnectionSettings(
     apiKey: String,
-    onApiKeyChange: (String) -> Unit,
+    onApiKeySave: (String) -> Unit,
     imageModel: String,
     onImageModelChange: (String) -> Unit,
     textModel: String,
-    onTextModelChange: (String) -> Unit
+    onTextModelChange: (String) -> Unit,
+    keyStorageEncrypted: Boolean
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
 
+    var keyDraft by remember(apiKey) { mutableStateOf(apiKey) }
+    val currentDraft by rememberUpdatedState(keyDraft)
+    val currentSave by rememberUpdatedState(onApiKeySave)
+    DisposableEffect(Unit) {
+        onDispose { currentSave(currentDraft) }
+    }
+
     val imageModels = listOf(
         ModelInfo(
-            ChatRepository.FREE_IMAGE_MODEL,
+            SettingsRepository.FREE_IMAGE_MODEL,
             stringResource(R.string.image_model_free_title),
             null,
             stringResource(R.string.image_model_free_desc)
@@ -521,10 +516,36 @@ private fun ConnectionSettings(
         ModelInfo(MODEL_FLUX_PRO, "FLUX.2 Pro", stringResource(R.string.price_flux_pro), stringResource(R.string.image_model_flux_pro_desc))
     )
     val textModels = listOf(
-        ModelInfo(TEXT_MODEL_OPENAI, stringResource(R.string.text_model_openai_title), null, stringResource(R.string.text_model_openai_desc)),
+        ModelInfo(SettingsRepository.DEFAULT_TEXT_MODEL, stringResource(R.string.text_model_openai_title), null, stringResource(R.string.text_model_openai_desc)),
         ModelInfo(TEXT_MODEL_QWEN, stringResource(R.string.text_model_qwen_title), null, stringResource(R.string.text_model_qwen_desc))
     )
-    val apiRequired = imageModel != ChatRepository.FREE_IMAGE_MODEL || textModel != TEXT_MODEL_OPENAI
+    val apiRequired = imageModel != SettingsRepository.FREE_IMAGE_MODEL || textModel != SettingsRepository.DEFAULT_TEXT_MODEL
+
+    if (!keyStorageEncrypted) {
+        Surface(
+            color = scheme.errorContainer,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.WarningAmber,
+                    contentDescription = null,
+                    tint = scheme.onErrorContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = stringResource(R.string.key_storage_warning),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onErrorContainer
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+    }
 
     SettingsCard {
         Row(
@@ -612,8 +633,8 @@ private fun ConnectionSettings(
         Spacer(modifier = Modifier.height(12.dp))
         if (apiRequired) {
             OutlinedTextField(
-                value = apiKey,
-                onValueChange = onApiKeyChange,
+                value = keyDraft,
+                onValueChange = { keyDraft = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = {
                     Text(
@@ -624,7 +645,11 @@ private fun ConnectionSettings(
                 },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(onDone = { onApiKeySave(keyDraft) }),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = scheme.primary,
                     unfocusedBorderColor = scheme.outlineVariant,
@@ -633,6 +658,12 @@ private fun ConnectionSettings(
                     cursorColor = scheme.primary
                 ),
                 shape = RoundedCornerShape(16.dp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = stringResource(R.string.api_key_save_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(10.dp))
             val selectedImage = imageModels.firstOrNull { it.id == imageModel && it.price != null }
@@ -647,13 +678,13 @@ private fun ConnectionSettings(
                 SummaryLine(Icons.Rounded.SmartToy, stringResource(R.string.api_summary_text))
                 Spacer(modifier = Modifier.height(4.dp))
             }
-            if (apiKey.isBlank()) {
+            if (keyDraft.isBlank()) {
                 Text(
                     text = stringResource(R.string.api_key_needed),
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.tertiary
                 )
-                if (imageModel != ChatRepository.FREE_IMAGE_MODEL) {
+                if (imageModel != SettingsRepository.FREE_IMAGE_MODEL) {
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = stringResource(R.string.api_free_fallback),
@@ -665,9 +696,9 @@ private fun ConnectionSettings(
             Spacer(modifier = Modifier.height(12.dp))
             Surface(
                 onClick = {
-                    val intent = android.content.Intent(
-                        android.content.Intent.ACTION_VIEW,
-                        android.net.Uri.parse("https://enter.pollinations.ai/keys")
+                    val intent = Intent(
+                        Intent.ACTION_VIEW,
+                        "https://enter.pollinations.ai/keys".toUri()
                     )
                     context.startActivity(intent)
                 },

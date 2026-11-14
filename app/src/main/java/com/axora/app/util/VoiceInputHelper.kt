@@ -2,13 +2,13 @@ package com.axora.app.util
 
 import android.Manifest
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import com.axora.app.R
 
 class VoiceInputHelper(private val activity: Activity) {
 
@@ -55,20 +55,20 @@ class VoiceInputHelper(private val activity: Activity) {
                     override fun onError(error: Int) {
                         started = false
                         if (!hasAudioPermission()) {
-                            listener.onError("Нет разрешения на запись звука")
+                            listener.onError(activity.getString(R.string.voice_err_permission))
                             return
                         }
                         val message = when (error) {
-                            SpeechRecognizer.ERROR_AUDIO -> "Ошибка аудио"
-                            SpeechRecognizer.ERROR_CLIENT -> "Ошибка: устройство не может начать запись. Попробуйте ещё раз."
-                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Нет разрешения на запись"
-                            SpeechRecognizer.ERROR_NETWORK -> "Ошибка сети"
-                            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Превышено время ожидания"
-                            SpeechRecognizer.ERROR_NO_MATCH -> "Речь не распознана. Попробуйте ещё раз"
-                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Сервис распознавания занят"
-                            SpeechRecognizer.ERROR_SERVER -> "Ошибка сервера распознавания"
-                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Речь не обнаружена. Скажите что-нибудь"
-                            else -> "Ошибка распознавания: $error"
+                            SpeechRecognizer.ERROR_AUDIO -> activity.getString(R.string.voice_err_audio)
+                            SpeechRecognizer.ERROR_CLIENT -> activity.getString(R.string.voice_err_client)
+                            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> activity.getString(R.string.voice_err_permissions)
+                            SpeechRecognizer.ERROR_NETWORK -> activity.getString(R.string.voice_err_network)
+                            SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> activity.getString(R.string.voice_err_network_timeout)
+                            SpeechRecognizer.ERROR_NO_MATCH -> activity.getString(R.string.voice_err_no_match)
+                            SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> activity.getString(R.string.voice_err_busy)
+                            SpeechRecognizer.ERROR_SERVER -> activity.getString(R.string.voice_err_server)
+                            SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> activity.getString(R.string.voice_err_speech_timeout)
+                            else -> activity.getString(R.string.voice_err_generic, error)
                         }
                         listener.onError(message)
                     }
@@ -79,7 +79,7 @@ class VoiceInputHelper(private val activity: Activity) {
                         if (!matches.isNullOrEmpty()) {
                             listener.onSpeechResult(matches[0])
                         } else {
-                            listener.onError("Речь не распознана. Попробуйте ещё раз")
+                            listener.onError(activity.getString(R.string.voice_err_no_match))
                         }
                     }
 
@@ -93,7 +93,7 @@ class VoiceInputHelper(private val activity: Activity) {
 
     fun startListening() {
         if (!hasAudioPermission()) {
-            listener?.onError("Нет разрешения на запись звука")
+            listener?.onError(activity.getString(R.string.voice_err_permission))
             return
         }
         val recognizer = speechRecognizer ?: return
@@ -108,7 +108,7 @@ class VoiceInputHelper(private val activity: Activity) {
             recognizer.startListening(intent)
         } catch (e: Exception) {
             started = false
-            listener?.onError("Не удалось запустить распознавание: ${e.message}")
+            listener?.onError(activity.getString(R.string.voice_err_start, e.message.orEmpty()))
         }
     }
 

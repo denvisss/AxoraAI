@@ -127,10 +127,61 @@
     <string name="about_share">Поделиться приложением</string>
     <string name="about_share_text">Axora — генерация изображений и текста через Pollinations AI. https://pollinations.ai</string>
     <string name="about_disclaimer">Независимый open-source проект, не аффилированный с Pollinations.ai. Медиа генерируется через публичный API pollinations.ai; ключи доступа выпускаются сервисом и хранятся на устройстве в зашифрованном виде.</string>
-    <string name="about_license">Лицензия MIT © 2026 denvisss. Обязательно указание автора и исходного проекта Axora.</string>
+    <string name="about_license">Лицензия MIT © 2026 denvisss. Обязательно указание автора и исходного проекта AxoraAI.</string>
 
     <!-- Coming soon -->
     <string name="tab_soon">Скоро</string>
     <string name="coming_soon_video">Генерация видео — скоро в следующих обновлениях</string>
     <string name="coming_soon_audio">Генерация аудио — скоро в следующих обновлениях</string>
+
+    <!-- Generation captions -->
+    <string name="image_ready">Вот изображение по вашему запросу</string>
+    <string name="video_ready">Вот видео по вашему запросу</string>
+    <string name="audio_ready">Вот аудио по вашему запросу</string>
+    <string name="image_edited">Изображение изменено</string>
+
+    <!-- Errors -->
+    <string name="error_offline">Нет подключения к интернету</string>
+    <string name="error_timeout">Сервер не ответил вовремя. Попробуйте ещё раз</string>
+    <string name="error_free_limit">Бесплатный лимит исчерпан. Добавьте API-ключ или подождите</string>
+    <string name="error_model_key_required">Эта модель доступна только с API-ключом</string>
+    <string name="error_invalid_key">Неверный API-ключ. Проверьте его в настройках</string>
+    <string name="error_insufficient_balance">Недостаточно средств на балансе Pollinations</string>
+    <string name="error_rate_limited">Слишком много запросов. Подождите немного</string>
+    <string name="error_service_unavailable">Сервис временно перегружен. Повторите через несколько секунд</string>
+    <string name="error_http">Ошибка сервера: %1$d</string>
+    <string name="error_http_detail">Ошибка %1$d: %2$s</string>
+    <string name="error_unknown">Неизвестная ошибка</string>
+    <string name="error_unknown_detail">Ошибка: %1$s</string>
+    <string name="error_empty_file">Сервер вернул пустой файл</string>
+    <string name="error_not_media">Сервер вернул не медиафайл (%1$s): %2$s</string>
+    <string name="error_no_edited_image">Сервер не вернул изменённое изображение</string>
+    <string name="edit_key_required">Для изменения изображения нужен API-ключ Pollinations</string>
+    <string name="edit_source_missing">Исходное изображение недоступно</string>
+    <string name="text_key_required">Для этой текстовой модели нужен API-ключ</string>
+    <string name="text_empty">Модель не вернула текст</string>
+
+    <!-- Chat actions -->
+    <string name="action_regenerate">Сгенерировать ещё</string>
+    <string name="cancel_generation">Отменить</string>
+    <string name="offline_banner">Нет подключения к интернету</string>
+    <string name="viewer_counter">%1$d из %2$d</string>
+
+    <!-- Settings: key -->
+    <string name="api_key_save_hint">Ключ сохраняется автоматически при закрытии экрана</string>
+    <string name="key_storage_warning">Не удалось включить шифрование хранилища — ключ будет сохранён в открытом виде на этом устройстве</string>
+
+    <!-- Voice input errors -->
+    <string name="voice_err_permission">Нет разрешения на запись аудио</string>
+    <string name="voice_err_audio">Ошибка записи аудио</string>
+    <string name="voice_err_client">Ошибка распознавания речи</string>
+    <string name="voice_err_permissions">Недостаточно разрешений для распознавания речи</string>
+    <string name="voice_err_network">Ошибка сети при распознавании речи</string>
+    <string name="voice_err_network_timeout">Тайм-аут сети при распознавании речи</string>
+    <string name="voice_err_no_match">Речь не распознана. Попробуйте ещё раз</string>
+    <string name="voice_err_busy">Служба распознавания занята. Повторите позже</string>
+    <string name="voice_err_server">Ошибка сервера распознавания речи</string>
+    <string name="voice_err_speech_timeout">Речь не обнаружена</string>
+    <string name="voice_err_generic">Ошибка распознавания речи: %1$d</string>
+    <string name="voice_err_start">Не удалось запустить распознавание: %1$s</string>
 </resources>

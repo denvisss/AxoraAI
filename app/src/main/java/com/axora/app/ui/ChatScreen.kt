@@ -6,6 +6,10 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -37,6 +41,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RocketLaunch
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.*
@@ -54,6 +59,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.axora.app.R
@@ -66,7 +73,9 @@ import com.axora.app.ui.theme.AxoraViolet
 import com.axora.app.ui.viewmodel.ChatViewModel
 import com.axora.app.util.SaveImageUtil
 import com.axora.app.util.VoiceInputHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
@@ -83,6 +92,7 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val comingSoonVideo = stringResource(R.string.coming_soon_video)
     val comingSoonAudio = stringResource(R.string.coming_soon_audio)
+    val isOffline = rememberIsOffline()
 
     var actionMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var editMessage by remember { mutableStateOf<ChatMessage?>(null) }
@@ -91,6 +101,7 @@ fun ChatScreen(
     var editImageText by remember { mutableStateOf("") }
     var showClearDialog by remember { mutableStateOf(false) }
     var pendingSave by remember { mutableStateOf<ChatMessage?>(null) }
+    var viewerIndex by remember { mutableStateOf<Int?>(null) }
 
     var isListening by remember { mutableStateOf(false) }
     val activity = context as Activity
@@ -111,7 +122,7 @@ fun ChatScreen(
     ) { granted ->
         val msg = pendingSave
         pendingSave = null
-        if (granted && msg != null) performSave(context, msg)
+        if (granted && msg != null) performSave(context, scope, msg)
         else Toast.makeText(context, noStoragePermission, Toast.LENGTH_SHORT).show()
     }
 
@@ -166,8 +177,10 @@ fun ChatScreen(
             storageLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
             return
         }
-        performSave(context, message)
+        performSave(context, scope, message)
     }
+
+    val imageMessages = uiState.messages.filter { it.isImageMessage() }
 
     val lastMessageId = uiState.messages.lastOrNull()?.id
     val bannerVisible = uiState.error != null && uiState.errorType == uiState.selectedType
@@ -235,19 +248,28 @@ fun ChatScreen(
                                 message = message,
                                 onRetry = { viewModel.retry(message) },
                                 onClick = { actionMessage = message },
+                                onImageClick = {
+                                    val index = imageMessages.indexOf(message)
+                                    if (index >= 0) viewerIndex = index
+                                },
                                 onDownload = { saveMedia(message) },
                                 onShare = { shareMedia(context, message) },
                                 onEditImage = {
                                     editImageMessage = message
                                     editImageText = ""
-                                }
+                                },
+                                onRegenerate = { viewModel.regenerate(message) }
                             )
                         }
                         if (uiState.isGenerating) {
-                            item { LoadingIndicator() }
+                            item { LoadingIndicator(onCancel = { viewModel.cancelGeneration() }) }
                         }
                     }
                 }
+            }
+
+            if (isOffline) {
+                OfflineBanner()
             }
 
             if (uiState.errorType == uiState.selectedType) {
@@ -279,6 +301,13 @@ fun ChatScreen(
                         )
                     }
                 }
+            }
+
+            if (uiState.selectedType == GenerationType.IMAGE) {
+                FormatChips(
+                    selected = uiState.imageFormat,
+                    onSelect = viewModel::setImageFormat
+                )
             }
 
             Box(
@@ -324,6 +353,11 @@ fun ChatScreen(
                         }
                         DialogAction(Icons.Rounded.Share, stringResource(R.string.action_share)) {
                             shareMedia(context, message); actionMessage = null
+                        }
+                        if (message.originalPrompt != null) {
+                            DialogAction(Icons.Rounded.Refresh, stringResource(R.string.action_regenerate)) {
+                                viewModel.regenerate(message); actionMessage = null
+                            }
                         }
                     }
                     if (message.text.isNotBlank()) {
@@ -432,6 +466,44 @@ fun ChatScreen(
             }
         )
     }
+
+    viewerIndex?.let { index ->
+        ImageViewerDialog(
+            messages = imageMessages,
+            initialIndex = index,
+            onDismiss = { viewerIndex = null },
+            onSave = { saveMedia(it) },
+            onShare = { shareMedia(context, it) }
+        )
+    }
+}
+
+@Composable
+private fun rememberIsOffline(): Boolean {
+    val context = LocalContext.current
+    val connectivityManager = remember {
+        context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    }
+    var offline by remember { mutableStateOf(!connectivityManager.isOnline()) }
+    DisposableEffect(connectivityManager) {
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { offline = false }
+            override fun onLost(network: Network) { offline = !connectivityManager.isOnline() }
+        }
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+            .build()
+        connectivityManager.registerNetworkCallback(request, callback)
+        onDispose { connectivityManager.unregisterNetworkCallback(callback) }
+    }
+    return offline
+}
+
+private fun ConnectivityManager.isOnline(): Boolean {
+    val network = activeNetwork ?: return false
+    return getNetworkCapabilities(network)
+        ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
 }
 
 private fun mediaFile(context: Context, message: ChatMessage): File? {
@@ -442,14 +514,29 @@ private fun mediaFile(context: Context, message: ChatMessage): File? {
     }
 }
 
-private fun performSave(context: Context, message: ChatMessage) {
+private fun performSave(context: Context, scope: kotlinx.coroutines.CoroutineScope, message: ChatMessage) {
     val file = mediaFile(context, message) ?: return
-    SaveImageUtil.saveToGallery(context, file, message.generationType)
+    scope.launch {
+        val result = runCatching {
+            withContext(Dispatchers.IO) { SaveImageUtil.saveToGallery(context, file, message.generationType) }
+        }
+        if (result.isSuccess) {
+            Toast.makeText(context, R.string.saved_to_gallery, Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(
+                context,
+                context.getString(R.string.save_error, result.exceptionOrNull()?.message.orEmpty()),
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 }
 
 private fun shareMedia(context: Context, message: ChatMessage) {
     val file = mediaFile(context, message) ?: return
-    SaveImageUtil.share(context, file, message.generationType)
+    if (!SaveImageUtil.share(context, file, message.generationType)) {
+        Toast.makeText(context, R.string.share_error, Toast.LENGTH_SHORT).show()
+    }
 }
 
 fun copyToClipboard(context: Context, text: String) {
@@ -592,6 +679,14 @@ private fun VoiceButton(
     Box(
         modifier = Modifier
             .size(52.dp)
+            .semantics {
+                // TalkBack не умеет «удерживать» — двойной тап работает как переключатель.
+                onClick {
+                    if (isGenerating) return@onClick false
+                    if (isListening) stopVoice() else startVoice()
+                    true
+                }
+            }
             .pointerInput(isGenerating) {
                 if (isGenerating) return@pointerInput
                 detectTapGestures(

@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AudioFile
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.ImageNotSupported
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.TextFields
@@ -51,6 +53,7 @@ import coil3.request.crossfade
 import com.axora.app.R
 import com.axora.app.domain.model.ChatMessage
 import com.axora.app.domain.model.GenerationType
+import com.axora.app.domain.model.ImageFormat
 import com.axora.app.ui.copyToClipboard
 import com.axora.app.ui.theme.AxoraGradient
 import java.io.File
@@ -225,9 +228,11 @@ fun MessageBubble(
     message: ChatMessage,
     onRetry: () -> Unit,
     onClick: () -> Unit,
+    onImageClick: () -> Unit,
     onDownload: () -> Unit,
     onShare: () -> Unit,
-    onEditImage: () -> Unit
+    onEditImage: () -> Unit,
+    onRegenerate: () -> Unit
 ) {
     val isUser = message.isUser()
     val context = LocalContext.current
@@ -266,7 +271,7 @@ fun MessageBubble(
         when (message.generationType) {
             GenerationType.IMAGE -> if (message.isImageMessage()) {
                 Spacer(Modifier.height(6.dp))
-                ImagePreview(message.imageUrl!!, onClick)
+                ImagePreview(message.imageUrl!!, onImageClick)
             }
             GenerationType.VIDEO -> if (message.isVideoMessage()) {
                 Spacer(Modifier.height(6.dp))
@@ -292,36 +297,49 @@ fun MessageBubble(
             ) {
                 IconButton(
                     onClick = onDownload,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Download,
                         contentDescription = stringResource(R.string.action_save),
                         tint = scheme.primary,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
                 IconButton(
                     onClick = onShare,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Share,
                         contentDescription = stringResource(R.string.action_share),
                         tint = scheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
                 if (message.isImageMessage()) {
                     IconButton(
                         onClick = onEditImage,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.AutoAwesome,
                             contentDescription = stringResource(R.string.action_edit_image),
                             tint = scheme.primary,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                if (message.originalPrompt != null) {
+                    IconButton(
+                        onClick = onRegenerate,
+                        modifier = Modifier.size(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = stringResource(R.string.action_regenerate),
+                            tint = scheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -351,7 +369,7 @@ fun MessageBubble(
             }
         }
 
-        if (message.isError()) {
+        if (message.isError) {
             Spacer(Modifier.height(4.dp))
             FilledTonalButton(
                 onClick = onRetry,
@@ -373,7 +391,14 @@ private fun ImagePreview(path: String, onClick: () -> Unit) {
     val context = LocalContext.current
     val file = File(path)
     if (file.exists()) {
-        val model = ImageRequest.Builder(context).data(file).crossfade(true).build()
+        val density = LocalDensity.current
+        val widthPx = with(density) { 260.dp.roundToPx() }
+        val heightPx = with(density) { 320.dp.roundToPx() }
+        val model = ImageRequest.Builder(context)
+            .data(file)
+            .size(widthPx, heightPx)
+            .crossfade(true)
+            .build()
         Image(
             painter = rememberAsyncImagePainter(model),
             contentDescription = stringResource(R.string.cd_generated_image),
@@ -502,12 +527,12 @@ private fun AudioPlayer(file: File) {
 }
 
 @Composable
-fun LoadingIndicator() {
+fun LoadingIndicator(onCancel: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -522,6 +547,69 @@ fun LoadingIndicator() {
             style = MaterialTheme.typography.labelMedium,
             color = scheme.onSurfaceVariant
         )
+        Spacer(Modifier.width(8.dp))
+        TextButton(
+            onClick = onCancel,
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+        ) {
+            Text(
+                stringResource(R.string.cancel_generation),
+                style = MaterialTheme.typography.labelMedium,
+                color = scheme.primary
+            )
+        }
+    }
+}
+
+@Composable
+fun OfflineBanner() {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        color = scheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CloudOff,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = stringResource(R.string.offline_banner),
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun FormatChips(
+    selected: ImageFormat,
+    onSelect: (ImageFormat) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        ImageFormat.entries.forEach { format ->
+            FilterChip(
+                selected = selected == format,
+                onClick = { onSelect(format) },
+                label = { Text(format.label, style = MaterialTheme.typography.labelMedium) },
+                shape = RoundedCornerShape(12.dp)
+            )
+        }
     }
 }
 

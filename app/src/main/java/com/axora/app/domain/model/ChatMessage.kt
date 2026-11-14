@@ -12,6 +12,7 @@ data class ChatMessage(
     val translatedPrompt: String? = null,
     val generationType: GenerationType = GenerationType.IMAGE,
     val timestamp: Long = System.currentTimeMillis(),
+    val isError: Boolean = false,
 ) {
     fun isUser(): Boolean = role == Role.USER
     fun isAssistant(): Boolean = role == Role.ASSISTANT
@@ -19,12 +20,6 @@ data class ChatMessage(
     fun isVideoMessage(): Boolean = !videoUrl.isNullOrEmpty()
     fun isAudioMessage(): Boolean = !audioUrl.isNullOrEmpty()
     fun hasMedia(): Boolean = isImageMessage() || isVideoMessage() || isAudioMessage()
-    fun isError(): Boolean =
-        isAssistant() && !hasMedia() && textContent.isNullOrEmpty() && text.startsWith(ERROR_PREFIX)
-
-    companion object {
-        const val ERROR_PREFIX = "Ошибка"
-    }
 }
 
 enum class Role {

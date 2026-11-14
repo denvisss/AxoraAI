@@ -14,6 +14,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.io.File
+import java.util.Base64
 
 class ImageApiServiceTest {
 
@@ -92,11 +94,16 @@ class ImageApiServiceTest {
 
     @Test
     fun editImagePostsSourceAsDataUriAndDecodesBase64Result() = runBlocking {
+        val source = File.createTempFile("axora-edit", ".png").apply {
+            writeBytes(byteArrayOf(1, 2, 3))
+            deleteOnExit()
+        }
         val response = service.editImage(
             "Bearer test-placeholder",
-            ImageEditRequest(
+            ImageEditBody(
+                file = source,
+                mime = "image/png",
                 prompt = "make the sky sunset",
-                image = listOf(ImageInput("data:image/png;base64,AQID")),
                 model = "black-forest-labs/flux.2-klein-4b",
                 size = "1536x1536"
             )
@@ -113,5 +120,23 @@ class ImageApiServiceTest {
         assertTrue(capturedBody.contains("\"response_format\":\"b64_json\""))
         assertTrue(capturedBody.contains("\"model\":\"black-forest-labs/flux.2-klein-4b\""))
         assertTrue(capturedBody.contains("\"size\":\"1536x1536\""))
+    }
+
+    @Test
+    fun editBodyStreamsBase64CorrectlyAcrossChunkBoundaries() = runBlocking {
+        val bytes = ByteArray(3 * 4096 * 2 + 7) { (it % 251).toByte() }
+        val source = File.createTempFile("axora-edit-big", ".jpg").apply {
+            writeBytes(bytes)
+            deleteOnExit()
+        }
+        service.editImage(
+            "Bearer test-placeholder",
+            ImageEditBody(source, "image/jpeg", "p", "m", "auto")
+        )
+
+        val expected = Base64.getEncoder().encodeToString(bytes)
+        val start = capturedBody.indexOf(";base64,") + ";base64,".length
+        val end = capturedBody.indexOf("\"}]", start)
+        assertEquals(expected, capturedBody.substring(start, end))
     }
 }

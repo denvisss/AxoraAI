@@ -15,6 +15,7 @@ data class ChatMessageEntity(
     val translatedPrompt: String? = null,
     val generationType: String = "IMAGE",
     val timestamp: Long = System.currentTimeMillis(),
+    val isError: Boolean = false,
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0
 )

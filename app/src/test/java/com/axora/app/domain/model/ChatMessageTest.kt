@@ -35,9 +35,9 @@ class ChatMessageTest {
     }
 
     @Test
-    fun errorMessageDetected() {
-        val message = ChatMessage(role = Role.ASSISTANT, text = "Ошибка: сеть недоступна")
-        assertTrue(message.isError())
+    fun errorMessageDetectedByFlag() {
+        val message = ChatMessage(role = Role.ASSISTANT, text = "сеть недоступна", isError = true)
+        assertTrue(message.isError)
     }
 
     @Test
@@ -49,13 +49,13 @@ class ChatMessageTest {
             textContent = answer,
             generationType = GenerationType.TEXT
         )
-        assertFalse(message.isError())
+        assertFalse(message.isError)
     }
 
     @Test
     fun userMessageIsNotError() {
         val message = ChatMessage(role = Role.USER, text = "Ошибка: что-то")
-        assertFalse(message.isError())
+        assertFalse(message.isError)
     }
 
     @Test

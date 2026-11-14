@@ -1,0 +1,187 @@
+<resources>
+    <string name="app_name">Axora</string>
+
+    <!-- Empty chat placeholders -->
+    <string name="empty_image">Describe the image\nyou want to create</string>
+    <string name="empty_video">Describe the video\nyou want to create</string>
+    <string name="empty_audio">Describe the audio\nyou want to create</string>
+    <string name="empty_text">Write what text\nto generate</string>
+
+    <!-- Generation types -->
+    <string name="type_image">Image</string>
+    <string name="type_video">Video</string>
+    <string name="type_audio">Audio</string>
+    <string name="type_text">Text</string>
+
+    <!-- Input bar -->
+    <string name="input_hint">What do you want to create</string>
+    <string name="cd_send">Send</string>
+    <string name="cd_mic">Voice input</string>
+    <string name="generating">Generating…</string>
+
+    <!-- Top bar -->
+    <string name="cd_clear_chat">Clear chat</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_back">Back</string>
+
+    <!-- Messages -->
+    <string name="cd_generated_image">Generated image</string>
+    <string name="file_unavailable">File unavailable</string>
+    <string name="copy_prompt">Copy prompt</string>
+    <string name="copied">Copied</string>
+    <string name="retry">Retry</string>
+    <string name="audio_label">Audio</string>
+    <string name="cd_play">Play</string>
+    <string name="cd_pause">Pause</string>
+
+    <!-- Action dialog -->
+    <string name="action_save">Download</string>
+    <string name="action_share">Share</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_delete">Delete</string>
+    <string name="close">Close</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+
+    <!-- Clear chat dialog -->
+    <string name="clear_chat_title">Clear chat?</string>
+    <string name="clear_chat_message">All messages of this tab and generated files will be deleted.</string>
+    <string name="clear">Clear</string>
+
+    <!-- Edit dialog -->
+    <string name="edit_title">Edit message</string>
+
+    <!-- Image edit dialog -->
+    <string name="action_edit_image">Edit image</string>
+    <string name="edit_image_title">What should be changed in the image?</string>
+    <string name="edit_image_hint">For example: make the sky sunset-colored, remove the person in the background</string>
+    <string name="edit_image_note">Requires a Pollinations API key. Editing spends balance and keeps the original image.</string>
+
+    <!-- Toasts -->
+    <string name="no_mic_permission">No microphone permission</string>
+    <string name="voice_unavailable">Speech recognition is not available on this device</string>
+    <string name="no_storage_permission">No permission to save</string>
+    <string name="saved_to_gallery">File saved to device</string>
+    <string name="save_error">Save error: %1$s</string>
+    <string name="share_error">Error: could not share</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="api_key_title">API key</string>
+    <string name="api_key_subtitle">enter.pollinations.ai/keys — free</string>
+    <string name="api_key_placeholder">sk_…</string>
+    <string name="get_api_key">Get API key</string>
+    <string name="api_not_required_title">No API key needed</string>
+    <string name="api_not_required_desc">Selected models work for free without a key</string>
+    <string name="api_key_needed">Add a key to use the selected models</string>
+    <string name="api_free_fallback">Without a key, images are generated for free at 768 × 768</string>
+    <string name="api_summary_image">Images: %1$s — %2$s</string>
+    <string name="api_summary_text">Text: Qwen3Guard 8B — free</string>
+    <string name="model_title">Text model</string>
+    <string name="model_subtitle">For text generation in chat</string>
+    <string name="text_model_openai_title">GPT-5.4 Nano</string>
+    <string name="text_model_openai_desc">No key • 1 request per 45 seconds</string>
+    <string name="text_model_qwen_title">Qwen3Guard 8B</string>
+    <string name="text_model_qwen_desc">API key required • no payment</string>
+    <string name="image_model_title">Image model</string>
+    <string name="image_model_subtitle">Free and paid Pollinations models</string>
+    <string name="badge_free">Free</string>
+    <string name="image_model_free_title">Flux</string>
+    <string name="image_model_free_desc">No key or payment • up to 768 × 768 • no editing</string>
+    <string name="image_model_klein_desc">Per image • up to 1536 × 1536 • fast • editing available</string>
+    <string name="image_model_kontext_desc">Per image • 1024 × 1024 • carefully preserves the original</string>
+    <string name="image_model_flux_pro_desc">Per megapixel • maximum precision • paid balance required</string>
+    <string name="price_klein">0.005 pollen</string>
+    <string name="price_kontext">0.03 pollen</string>
+    <string name="price_flux_pro">0.01125 pollen/MP</string>
+    <string name="section_app">App</string>
+    <string name="section_connection">Connection</string>
+    <string name="connection_title">API and models</string>
+    <string name="connection_subtitle">Pollinations key, image and text models</string>
+    <string name="dark_theme_title">Dark theme</string>
+    <string name="dark_theme_subtitle">Toggle appearance</string>
+    <string name="footer">Media generation</string>
+
+    <!-- Settings: generation -->
+    <string name="section_generation">Generation</string>
+    <string name="auto_save_title">Auto-save to gallery</string>
+    <string name="auto_save_subtitle">Save new images, videos and audio to the device</string>
+    <string name="auto_translate_title">Auto-translate prompts</string>
+    <string name="auto_translate_subtitle">Translate requests to English before generation</string>
+
+    <!-- Settings: storage -->
+    <string name="section_storage">Storage</string>
+    <string name="storage_title">Clear storage</string>
+    <string name="storage_used">Used: %1$s</string>
+    <string name="storage_empty">No saved files</string>
+    <string name="storage_clear">Clear</string>
+    <string name="storage_clear_title">Clear storage?</string>
+    <string name="storage_clear_message">All generated images, videos and audio will be deleted from the device. Chat history will remain.</string>
+    <string name="storage_cleared">Storage cleared</string>
+
+    <!-- Settings: about -->
+    <string name="section_about">About</string>
+    <string name="about_version">Version %1$s</string>
+    <string name="about_site">Pollinations website</string>
+    <string name="about_share">Share the app</string>
+    <string name="about_share_text">Axora — image and text generation via Pollinations AI. https://pollinations.ai</string>
+    <string name="about_disclaimer">An independent open-source project, not affiliated with Pollinations.ai. Media is generated via the public pollinations.ai API; access keys are issued by the service and stored encrypted on the device.</string>
+    <string name="about_license">MIT License © 2026 denvisss. Attribution to the author and the original AxoraAI project is required.</string>
+
+    <!-- Coming soon -->
+    <string name="tab_soon">Soon</string>
+    <string name="coming_soon_video">Video generation — coming in future updates</string>
+    <string name="coming_soon_audio">Audio generation — coming in future updates</string>
+
+    <!-- Generation captions -->
+    <string name="image_ready">Here is the image for your request</string>
+    <string name="video_ready">Here is the video for your request</string>
+    <string name="audio_ready">Here is the audio for your request</string>
+    <string name="image_edited">Image edited</string>
+
+    <!-- Errors -->
+    <string name="error_offline">No internet connection</string>
+    <string name="error_timeout">The server did not respond in time. Try again</string>
+    <string name="error_free_limit">Free limit reached. Add an API key or wait</string>
+    <string name="error_model_key_required">This model is only available with an API key</string>
+    <string name="error_invalid_key">Invalid API key. Check it in settings</string>
+    <string name="error_insufficient_balance">Insufficient Pollinations balance</string>
+    <string name="error_rate_limited">Too many requests. Please wait a bit</string>
+    <string name="error_service_unavailable">The service is temporarily overloaded. Try again in a few seconds</string>
+    <string name="error_http">Server error: %1$d</string>
+    <string name="error_http_detail">Error %1$d: %2$s</string>
+    <string name="error_unknown">Unknown error</string>
+    <string name="error_unknown_detail">Error: %1$s</string>
+    <string name="error_empty_file">The server returned an empty file</string>
+    <string name="error_not_media">The server returned a non-media response (%1$s): %2$s</string>
+    <string name="error_no_edited_image">The server did not return an edited image</string>
+    <string name="edit_key_required">Editing an image requires a Pollinations API key</string>
+    <string name="edit_source_missing">The original image is unavailable</string>
+    <string name="text_key_required">This text model requires an API key</string>
+    <string name="text_empty">The model returned no text</string>
+
+    <!-- Chat actions -->
+    <string name="action_regenerate">Generate again</string>
+    <string name="cancel_generation">Cancel</string>
+    <string name="offline_banner">No internet connection</string>
+    <string name="viewer_counter">%1$d of %2$d</string>
+
+    <!-- Settings: key -->
+    <string name="api_key_save_hint">The key is saved automatically when you leave the screen</string>
+    <string name="key_storage_warning">Could not enable storage encryption — the key will be stored in plain text on this device</string>
+
+    <!-- Voice input errors -->
+    <string name="voice_err_permission">No audio recording permission</string>
+    <string name="voice_err_audio">Audio recording error</string>
+    <string name="voice_err_client">Speech recognition error</string>
+    <string name="voice_err_permissions">Insufficient permissions for speech recognition</string>
+    <string name="voice_err_network">Network error during speech recognition</string>
+    <string name="voice_err_network_timeout">Network timeout during speech recognition</string>
+    <string name="voice_err_no_match">Speech not recognized. Try again</string>
+    <string name="voice_err_busy">Recognition service is busy. Try later</string>
+    <string name="voice_err_server">Speech recognition server error</string>
+    <string name="voice_err_speech_timeout">No speech detected</string>
+    <string name="voice_err_generic">Speech recognition error: %1$d</string>
+    <string name="voice_err_start">Could not start recognition: %1$s</string>
+</resources>

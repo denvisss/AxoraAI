@@ -5,7 +5,8 @@ data class ChatUiState(
     val generatingTypes: Set<GenerationType> = emptySet(),
     val error: String? = null,
     val errorType: GenerationType? = null,
-    val selectedType: GenerationType = GenerationType.IMAGE
+    val selectedType: GenerationType = GenerationType.IMAGE,
+    val imageFormat: ImageFormat = ImageFormat.SQUARE
 ) {
     val isGenerating: Boolean get() = selectedType in generatingTypes
 }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -20,6 +21,8 @@ import com.axora.app.ui.settings.SettingsScreen
 import com.axora.app.ui.theme.AxoraTheme
 import com.axora.app.ui.viewmodel.ChatViewModel
 import com.axora.app.ui.viewmodel.ChatViewModelFactory
+import com.axora.app.ui.viewmodel.SettingsViewModel
+import com.axora.app.ui.viewmodel.SettingsViewModelFactory
 
 class MainActivity : ComponentActivity() {
 
@@ -27,14 +30,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val repository = (application as AxoraApplication).repository
-        val viewModel: ChatViewModel by viewModels { ChatViewModelFactory(repository) }
-        val prefs = getSharedPreferences("axora_prefs", MODE_PRIVATE)
+        val app = application as AxoraApplication
+        val chatViewModel: ChatViewModel by viewModels { ChatViewModelFactory(app.repository, app) }
+        val settingsViewModel: SettingsViewModel by viewModels {
+            SettingsViewModelFactory(app.settingsRepository, app.mediaStorage)
+        }
 
         setContent {
+            val settingsState by settingsViewModel.uiState.collectAsState()
             val systemDark = isSystemInDarkTheme()
             var showSettings by rememberSaveable { mutableStateOf(false) }
-            var darkTheme by rememberSaveable { mutableStateOf(prefs.getBoolean("dark_theme", systemDark)) }
+            val darkTheme = settingsState.darkTheme ?: systemDark
 
             BackHandler(enabled = showSettings) { showSettings = false }
 
@@ -46,16 +52,11 @@ class MainActivity : ComponentActivity() {
                     if (showSettings) {
                         SettingsScreen(
                             onBack = { showSettings = false },
-                            repository = repository,
-                            darkTheme = darkTheme,
-                            onToggleDarkTheme = { enabled ->
-                                darkTheme = enabled
-                                prefs.edit().putBoolean("dark_theme", enabled).apply()
-                            }
+                            viewModel = settingsViewModel
                         )
                     } else {
                         ChatScreen(
-                            viewModel = viewModel,
+                            viewModel = chatViewModel,
                             onSettingsClick = { showSettings = true }
                         )
                     }
