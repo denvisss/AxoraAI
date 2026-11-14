@@ -1,22 +1,19 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.ksp)
 }
 
 android {
-    namespace = "com.imageai.app"
-    compileSdk = 35
+    namespace = "com.axora.app"
+    compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.imageai.app"
+        applicationId = "com.axora.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -39,12 +36,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -57,15 +51,9 @@ dependencies {
     val bom = platform(libs.androidx.compose.bom)
     implementation(bom)
     implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-    debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.icons.core)
     implementation(libs.androidx.compose.icons.extended)
-
-    // Navigation
-    implementation(libs.androidx.navigation.compose)
 
     // Lifecycle & ViewModel
     implementation(libs.androidx.lifecycle.viewmodel.compose)
@@ -85,11 +73,13 @@ dependencies {
 
     // Image loading (Coil)
     implementation(libs.coil.compose)
-    implementation(libs.coil.okhttp)
+
+    // Encrypted storage for the API key
+    implementation(libs.androidx.security.crypto)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
 
-    // ExoPlayer for audio playback
-    implementation(libs.androidx.media3.exoplayer)
+    // Tests
+    testImplementation(libs.junit)
 }

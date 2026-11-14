@@ -1,3 +1,136 @@
 <resources>
-    <string name="app_name">ImageAI</string>
+    <string name="app_name">Axora</string>
+
+    <!-- Empty chat placeholders -->
+    <string name="empty_image">Опишите изображение,\nкоторое хотите создать</string>
+    <string name="empty_video">Опишите видео,\nкоторое хотите создать</string>
+    <string name="empty_audio">Опишите аудио,\nкоторое хотите создать</string>
+    <string name="empty_text">Напишите,\nкакой текст сгенерировать</string>
+
+    <!-- Generation types -->
+    <string name="type_image">Изображение</string>
+    <string name="type_video">Видео</string>
+    <string name="type_audio">Аудио</string>
+    <string name="type_text">Текст</string>
+
+    <!-- Input bar -->
+    <string name="input_hint">Что Вы хотите создать</string>
+    <string name="cd_send">Отправить</string>
+    <string name="cd_mic">Голосовой ввод</string>
+    <string name="generating">Генерация…</string>
+
+    <!-- Top bar -->
+    <string name="cd_clear_chat">Очистить чат</string>
+    <string name="cd_settings">Настройки</string>
+    <string name="cd_back">Назад</string>
+
+    <!-- Messages -->
+    <string name="cd_generated_image">Сгенерированное изображение</string>
+    <string name="file_unavailable">Файл недоступен</string>
+    <string name="copy_prompt">Копировать промпт</string>
+    <string name="copied">Скопировано</string>
+    <string name="retry">Повторить</string>
+    <string name="audio_label">Аудио</string>
+    <string name="cd_play">Воспроизвести</string>
+    <string name="cd_pause">Пауза</string>
+
+    <!-- Action dialog -->
+    <string name="action_save">Скачать</string>
+    <string name="action_share">Поделиться</string>
+    <string name="action_copy">Копировать</string>
+    <string name="action_edit">Изменить</string>
+    <string name="action_delete">Удалить</string>
+    <string name="close">Закрыть</string>
+    <string name="cancel">Отмена</string>
+    <string name="save">Сохранить</string>
+
+    <!-- Clear chat dialog -->
+    <string name="clear_chat_title">Очистить чат?</string>
+    <string name="clear_chat_message">Все сообщения этой вкладки и сгенерированные файлы будут удалены.</string>
+    <string name="clear">Очистить</string>
+
+    <!-- Edit dialog -->
+    <string name="edit_title">Изменить сообщение</string>
+
+    <!-- Image edit dialog -->
+    <string name="action_edit_image">Изменить изображение</string>
+    <string name="edit_image_title">Что изменить на изображении?</string>
+    <string name="edit_image_hint">Например: сделай небо закатным, убери человека на фоне</string>
+    <string name="edit_image_note">Нужен API-ключ Pollinations. Правка расходует баланс и сохраняет исходное изображение.</string>
+
+    <!-- Toasts -->
+    <string name="no_mic_permission">Нет разрешения на микрофон</string>
+    <string name="voice_unavailable">Распознавание речи недоступно на этом устройстве</string>
+    <string name="no_storage_permission">Нет разрешения на сохранение</string>
+    <string name="saved_to_gallery">Файл сохранён на устройство</string>
+    <string name="save_error">Ошибка сохранения: %1$s</string>
+    <string name="share_error">Ошибка: не удалось поделиться</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Настройки</string>
+    <string name="api_key_title">API ключ</string>
+    <string name="api_key_subtitle">enter.pollinations.ai/keys — бесплатно</string>
+    <string name="api_key_placeholder">sk_…</string>
+    <string name="get_api_key">Получить API ключ</string>
+    <string name="api_not_required_title">Ввод API не требуется</string>
+    <string name="api_not_required_desc">Выбранные модели работают бесплатно и без ключа</string>
+    <string name="api_key_needed">Добавьте ключ, чтобы использовать выбранные модели</string>
+    <string name="api_free_fallback">Без ключа изображения создаются бесплатно в 768 × 768</string>
+    <string name="api_summary_image">Изображения: %1$s — %2$s</string>
+    <string name="api_summary_text">Текст: Qwen3Guard 8B — бесплатно</string>
+    <string name="model_title">Модель текста</string>
+    <string name="model_subtitle">Для генерации текста в чате</string>
+    <string name="text_model_openai_title">GPT-5.4 Nano</string>
+    <string name="text_model_openai_desc">Без ключа • 1 запрос в 45 секунд</string>
+    <string name="text_model_qwen_title">Qwen3Guard 8B</string>
+    <string name="text_model_qwen_desc">Нужен API-ключ • без оплаты</string>
+    <string name="image_model_title">Модель изображений</string>
+    <string name="image_model_subtitle">Бесплатные и платные модели Pollinations</string>
+    <string name="badge_free">Бесплатно</string>
+    <string name="image_model_free_title">Flux</string>
+    <string name="image_model_free_desc">Без ключа и оплаты • до 768 × 768 • без редактирования</string>
+    <string name="image_model_klein_desc">За изображение • до 1536 × 1536 • быстро • есть редактирование</string>
+    <string name="image_model_kontext_desc">За изображение • 1024 × 1024 • бережно сохраняет исходник</string>
+    <string name="image_model_flux_pro_desc">За мегапиксель • максимальная точность • нужен платный баланс</string>
+    <string name="price_klein">0.005 pollen</string>
+    <string name="price_kontext">0.03 pollen</string>
+    <string name="price_flux_pro">0.01125 pollen/МП</string>
+    <string name="section_app">Приложение</string>
+    <string name="section_connection">Подключение</string>
+    <string name="connection_title">API и модели</string>
+    <string name="connection_subtitle">Ключ Pollinations, модели изображений и текста</string>
+    <string name="dark_theme_title">Тёмная тема</string>
+    <string name="dark_theme_subtitle">Переключить оформление</string>
+    <string name="footer">Генерация медиа</string>
+
+    <!-- Settings: generation -->
+    <string name="section_generation">Генерация</string>
+    <string name="auto_save_title">Автосохранение в галерею</string>
+    <string name="auto_save_subtitle">Сохранять новые изображения, видео и аудио на устройство</string>
+    <string name="auto_translate_title">Автоперевод промптов</string>
+    <string name="auto_translate_subtitle">Переводить запросы на английский перед генерацией</string>
+
+    <!-- Settings: storage -->
+    <string name="section_storage">Память</string>
+    <string name="storage_title">Очистка памяти</string>
+    <string name="storage_used">Занято: %1$s</string>
+    <string name="storage_empty">Нет сохранённых файлов</string>
+    <string name="storage_clear">Очистить</string>
+    <string name="storage_clear_title">Очистить память?</string>
+    <string name="storage_clear_message">Все сгенерированные изображения, видео и аудио будут удалены с устройства. История чатов останется.</string>
+    <string name="storage_cleared">Память очищена</string>
+
+    <!-- Settings: about -->
+    <string name="section_about">О приложении</string>
+    <string name="about_version">Версия %1$s</string>
+    <string name="about_site">Сайт Pollinations</string>
+    <string name="about_share">Поделиться приложением</string>
+    <string name="about_share_text">Axora — генерация изображений и текста через Pollinations AI. https://pollinations.ai</string>
+    <string name="about_disclaimer">Независимый open-source проект, не аффилированный с Pollinations.ai. Медиа генерируется через публичный API pollinations.ai; ключи доступа выпускаются сервисом и хранятся на устройстве в зашифрованном виде.</string>
+    <string name="about_license">Лицензия MIT © 2026 denvisss. Обязательно указание автора и исходного проекта Axora.</string>
+
+    <!-- Coming soon -->
+    <string name="tab_soon">Скоро</string>
+    <string name="coming_soon_video">Генерация видео — скоро в следующих обновлениях</string>
+    <string name="coming_soon_audio">Генерация аудио — скоро в следующих обновлениях</string>
 </resources>

@@ -10,7 +10,7 @@ app/build/
 .idea/
 *.iml
 *.apk
-*.kotlin
+.kotlin/
 
 # Android Studio
 captures/
@@ -23,7 +23,7 @@ Thumbs.db
 *.log
 
 # Generated files
-app/src/main/java/com/imageai/app/data/local/AppDatabase.db
+app/src/main/java/com/axora/app/data/local/AppDatabase.db
 *.jks
 *.keystore
 
