@@ -1,0 +1,173 @@
+<div align="center">
+
+# Axora
+
+**Генерация изображений и текста по промпту в вашем кармане — на базе [Pollinations.ai](https://pollinations.ai)**
+
+[English](README.md) · **Русский**
+
+[![Android CI](https://github.com/denvisss/AxoraAI/actions/workflows/android.yml/badge.svg?style=for-the-badge)](https://github.com/denvisss/AxoraAI/actions/workflows/android.yml)
+[![Made with Pollinations](https://raw.githubusercontent.com/pollinations/pollinations/main/packages/ui/src/brand/badge-made-with.svg)](https://pollinations.ai/?ref=badge)
+[![Release](https://img.shields.io/github/v/release/denvisss/AxoraAI?style=for-the-badge&label=Release&color=2ea44f)](https://github.com/denvisss/AxoraAI/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/denvisss/AxoraAI?style=for-the-badge&color=blue)](LICENSE)
+[![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/about/versions/oreo)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+
+</div>
+
+---
+
+Axora — Android-клиент для генерации медиа по текстовому промпту: изображения и текст доступны сейчас, видео и аудио запланированы в следующих обновлениях. Генерация выполняется через публичный API [pollinations.ai](https://pollinations.ai). Интерфейс на русском и английском: русский по умолчанию, выбор языка в настройках.
+
+> Axora — независимый open-source проект, не аффилированный с Pollinations.ai и не являющийся его официальным продуктом. Сервис предоставляет только вычислительный API и выпуск ключей доступа.
+
+## ✨ Возможности
+
+- **Раздельные чаты по типам генерации.** Вкладки «Изображение», «Текст», «Видео», «Аудио»; у каждой свой поток истории. Видео и аудио помечены «Скоро» и недоступны до релиза.
+- **Генерация изображений.** Бесплатный режим без ключа (Flux, до 768×768) и режимы с ключом повышенного разрешения (до 1536×1536). Форматы кадра 1:1, 3:4 и 4:3 работают в обоих режимах. Редактирование готового изображения по инструкции (image-to-image).
+- **Генерация текста.** Диалоговая модель без ключа (с лимитом частоты) либо модель с ключом без оплаты; модель учитывает контекст последних сообщений вкладки.
+- **Голосовой ввод.** Русский язык, семантика «удерживай — говори, отпусти — отправить» (`SpeechRecognizer`); для TalkBack микрофон работает как переключатель.
+- **Автоперевод промптов.** Кириллические запросы переводятся на английский перед медиа-генерацией (отключаемо).
+- **Просмотрщик изображений.** Полноэкранный просмотр с листанием всех изображений чата, зумом до 5× и панорамированием; скачивание и «Поделиться» прямо из просмотрщика.
+- **Работа с результатом.** Сохранение в галерею, «Поделиться», копирование текста, воспроизведение видео/аудио в чате, автосохранение новых медиа (отключаемо), повторная генерация по исходному промпту («Сгенерировать ещё»).
+- **Управление генерацией.** Отмена текущей генерации кнопкой в индикаторе; частичные файлы удаляются. Индикатор отсутствия интернета.
+- **Управление историей.** Room-хранилище по вкладкам: редактирование и удаление сообщений, повтор при ошибке, очистка чата, очистка всех сгенерированных файлов с сохранением истории.
+- **Оформление.** Material 3, светлая и тёмная темы с сохранением выбора.
+- **Язык интерфейса.** Русский по умолчанию независимо от языка системы; переключение на английский в настройках с сохранением выбора.
+- **Обновления из GitHub.** Фоновая автопроверка релизов репозитория не чаще раза в 24 часа; предложение обновиться появляется только в настройках. Пункт «Обновление приложения» скачивает APK с прогрессом и сверкой SHA-256 и устанавливает его обновлением поверх текущей версии.
+- **Обратная связь.** Пункт «Написать разработчику» в настройках открывает ветку обсуждения проекта в GitHub Discussions: сообщения об ошибках, предложения и вопросы.
+
+## 🧠 Модели и стоимость
+
+| Тип | Модель | Ключ | Разрешение | Стоимость |
+|---|---|---|---|---|
+| Изображение | Flux (classic) | не нужен | до 768×768 | бесплатно |
+| Изображение | FLUX.2 Klein 4B | нужен | до 1536×1536 | 0.005 pollen / изображение |
+| Изображение | FLUX.1 Kontext Pro | нужен | 1024×1024 | 0.03 pollen / изображение |
+| Изображение | FLUX.2 Pro | нужен + баланс | до 1536×1536 | 0.01125 pollen / МП |
+| Текст | GPT-5.4 Nano (`openai`) | не нужен | — | бесплатно, 1 запрос / 45 с |
+| Текст | Qwen3Guard 8B | нужен | — | бесплатно |
+
+Редактирование изображений требует ключ и расходует баланс выбранной модели. Без ключа приложение автоматически использует бесплатный режим.
+
+## 📥 Загрузка
+
+Свежий APK — в разделе [Releases](https://github.com/denvisss/AxoraAI/releases/latest) (Android 8.0+). Устанавливается поверх предыдущей версии: подпись сохраняется, данные не теряются. Приложение также умеет проверять обновления само (см. «Возможности»).
+
+## ⚙️ Порядок работы
+
+1. `MainActivity` поднимает `ChatViewModel` и открывает `ChatScreen` (вкладка «Изображение» по умолчанию).
+2. Ввод промпта (текст или голос) → `ChatViewModel.sendMessage()` сохраняет пользовательское сообщение и запускает генерацию.
+3. Для медиа: опциональный перевод ru→en → `ChatRepository.generateContent()` выбирает эндпоинт по модели и наличию ключа (classic без ключа либо `gen.pollinations.ai` с ключом) → файл сохраняется в `files/generated/` → ассистентское сообщение попадает в Room → при включённом автосохранении копируется в галерею.
+4. Для текста: `ChatRepository.generateText()` обращается к chat-completions (без ключа либо с ключом).
+5. Редактирование: `ChatRepository.editImage()` отправляет исходник как base64 data-URI в `POST /v1/images/edits`.
+6. История каждой вкладки читается как `Flow` из Room; UI реактивно обновляется.
+
+## 🔐 Безопасность ключа
+
+- Ключ хранится в `EncryptedSharedPreferences` (AES256-GCM/SIV) и не попадает в бэкап.
+- Передаётся только в заголовке `Authorization: Bearer …`; в логах заголовок редактируется (`redactHeader`).
+- Ключ не содержится в исходном коде, ресурсах и сборочных файлах; в репозитории только тестовый placeholder.
+- `local.properties` и артефакты сборки исключены из VCS (`.gitignore`).
+
+## 🛠 Технологии
+
+| Компонент | Версия |
+|---|---|
+| Kotlin (built-in, AGP) | 2.2.10 |
+| Android Gradle Plugin | 9.5.1 |
+| Gradle | 9.6.0 |
+| KSP | 2.3.14 |
+| Jetpack Compose (BOM) | 2026.09.00 |
+| Material 3 + icons-extended | из BOM |
+| Room | 2.8.5 |
+| Retrofit / Gson | 3.0.0 |
+| OkHttp (+ logging) | 5.5.1 |
+| Coil 3 | 3.4.0 |
+| Coroutines | 1.11.0 |
+| Lifecycle / ViewModel | 2.11.0 |
+| security-crypto | 1.1.0 |
+
+Архитектура: MVVM с единым `ChatUiState`; `ChatRepository` — интерфейс, `DefaultChatRepository` — реализация (маршрутизация моделей, ключ, файлы); `SettingsRepository` — настройки и ключ, `MediaStorage` — учёт и очистка сгенерированных файлов. DI вручную через `NetworkModule` и `AxoraApplication`. Строки во ViewModel резолвятся через `StringResolver`, поэтому ViewModel тестируется на JVM без Android. Все сетевые и дисковые операции вне main-потока (`Dispatchers.IO`). Схема Room экспортируется в `app/schemas`, миграции версионируются.
+
+`compileSdk 37`, `targetSdk 36`, `minSdk 26`.
+
+## 📁 Структура проекта
+
+```
+app/src/main/java/com/axora/app/
+├── AxoraApplication.kt        # DI: репозитории, БД, сеть
+├── data/
+│   ├── local/
+│   │   ├── AppDatabase.kt     # Room-БД + миграции
+│   │   ├── dao/ChatDao.kt     # запросы истории и очистки медиа
+│   │   └── entity/ChatMessageEntity.kt
+│   ├── network/               # Retrofit-сервисы (image/text/video/audio), TranslationClient, ImageEditBody (streaming base64)
+│   └── repository/            # ChatRepository (интерфейс), DefaultChatRepository, SettingsRepository, MediaStorage, UpdateManager
+├── di/NetworkModule.kt        # OkHttp/Retrofit, редакция Authorization
+├── domain/model/              # ChatMessage, ChatUiState, GenerationType, ImageFormat
+├── ui/
+│   ├── MainActivity.kt        # тема, навигация чат/настройки
+│   ├── ChatScreen.kt          # чат, ввод, голос, просмотрщик, офлайн-баннер
+│   ├── components/            # ChatComponents (вкладки, баблы, плееры), ImageViewer (зум/пейджер)
+│   ├── settings/SettingsScreen.kt    # настройки и подменю «Подключение»
+│   ├── theme/                 # Color.kt, Theme.kt (light/dark)
+│   └── viewmodel/             # ChatViewModel, SettingsViewModel, фабрики, StringResolver
+└── util/                      # SaveImageUtil (MediaStore/FileProvider), VoiceInputHelper, ImageSpec
+```
+
+## 🧰 Требования и сборка
+
+- JDK 17+
+- Android SDK: compileSdk 37 (устанавливается через SDK Manager)
+- `local.properties` с `sdk.dir` (создаётся Android Studio либо вручную; в VCS не попадает)
+
+Отладочная сборка:
+
+```bash
+./gradlew assembleDebug        # Linux/macOS
+gradlew.bat assembleDebug      # Windows
+```
+
+Release (R8 + shrinkResources):
+
+```bash
+./gradlew assembleRelease
+```
+
+Установка на устройство/эмулятор:
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+## ✅ Тесты и статический анализ
+
+```bash
+./gradlew testDebugUnitTest    # unit-тесты (JUnit4 + coroutines-test)
+./gradlew lintDebug            # Android lint
+```
+
+Покрытие: доменные модели, `ImageSpec` (размеры/форматы), сетевые сервисы и `TranslationClient` (fake-interceptor OkHttp, без реальных запросов), `ChatViewModel` (fake-репозиторий: генерация, ошибки, отмена, регенерация, контекст текста). CI (GitHub Actions) собирает debug-APK, прогоняет тесты и lint на каждый push и PR в `main`.
+
+## 📱 Настройка в приложении
+
+1. Получите ключ (`sk_…`) на [enter.pollinations.ai/keys](https://enter.pollinations.ai/keys).
+2. «Настройки» → «Подключение» → вставьте ключ и выберите модели изображений и текста.
+3. Без ключа работают бесплатные модели; поле ключа блокируется, когда выбраны только бесплатные модели.
+4. Главные настройки: тема, язык приложения (русский по умолчанию), автосохранение в галерею, автоперевод промптов, очистка памяти, обновление приложения (автопроверка раз в 24 часа), «Поделиться приложением», «Написать разработчику», «О приложении».
+
+## 📄 Лицензия и атрибуция
+
+Проект распространяется под лицензией **MIT** (см. [LICENSE](LICENSE)).
+
+Условия обязательной атрибуции: при любом распространении, форке или включении кода в сторонние продукты необходимо сохранять уведомление об авторских правах и указывать автора и исходный проект:
+
+- **Автор:** denvisss
+- **Исходный проект:** Axora (репозиторий AxoraAI)
+
+Атрибуция также продублирована в приложении: «Настройки» → «О приложении».
+
+## ⚠️ Отказ от аффилиации
+
+Axora не связан с Pollinations.ai юридически или организационно. Названия и торговые марки принадлежат их владельцам. Взаимодействие ограничивается публичным API сервиса; ключи доступа выпускаются и проверяются на стороне Pollinations.ai.
