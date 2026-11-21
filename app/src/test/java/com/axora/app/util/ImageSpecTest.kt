@@ -7,44 +7,31 @@ import org.junit.Test
 class ImageSpecTest {
 
     @Test
-    fun freeModelSupportsAllFormatsAt768() {
-        assertEquals(768 to 768, ImageSpec.generationSize(ImageFormat.SQUARE, "free", keyed = false))
-        assertEquals(768 to 1024, ImageSpec.generationSize(ImageFormat.PORTRAIT, "free", keyed = false))
-        assertEquals(1024 to 768, ImageSpec.generationSize(ImageFormat.LANDSCAPE, "free", keyed = false))
+    fun generationSizesCoverAllFormats() {
+        assertEquals(1024 to 1024, ImageSpec.generationSize(ImageFormat.SQUARE))
+        assertEquals(896 to 1152, ImageSpec.generationSize(ImageFormat.PORTRAIT))
+        assertEquals(1152 to 896, ImageSpec.generationSize(ImageFormat.LANDSCAPE))
     }
 
     @Test
-    fun keyedKleinUses1536Base() {
-        val model = "black-forest-labs/flux.2-klein-4b"
-        assertEquals(1536 to 1536, ImageSpec.generationSize(ImageFormat.SQUARE, model, keyed = true))
-        assertEquals(1152 to 1536, ImageSpec.generationSize(ImageFormat.PORTRAIT, model, keyed = true))
-        assertEquals(1536 to 1152, ImageSpec.generationSize(ImageFormat.LANDSCAPE, model, keyed = true))
+    fun editOutputDownscalesLargeSource() {
+        assertEquals(1024 to 512, ImageSpec.editOutputSize(2000, 1000))
     }
 
     @Test
-    fun keyedKontextUses1024Base() {
-        val model = "flux-kontext"
-        assertEquals(1024 to 1024, ImageSpec.generationSize(ImageFormat.SQUARE, model, keyed = true))
-        assertEquals(768 to 1024, ImageSpec.generationSize(ImageFormat.PORTRAIT, model, keyed = true))
-        assertEquals(1024 to 768, ImageSpec.generationSize(ImageFormat.LANDSCAPE, model, keyed = true))
+    fun editOutputKeepsSmallSourceRoundedTo32() {
+        assertEquals(800 to 608, ImageSpec.editOutputSize(800, 608))
     }
 
     @Test
-    fun editSizeFallsBackToAutoForUnknownDimensions() {
-        assertEquals("auto", ImageSpec.editSize(0, 100, "klein"))
-        assertEquals("auto", ImageSpec.editSize(100, -1, "klein"))
+    fun editOutputClampsSmallSidesToMinimum() {
+        assertEquals(256 to 256, ImageSpec.editOutputSize(10, 10))
     }
 
     @Test
-    fun editSizeDownscalesLargeSourceToModelLimit() {
-        assertEquals("1536x768", ImageSpec.editSize(2000, 1000, "klein"))
-        assertEquals("1024x512", ImageSpec.editSize(2000, 1000, "kontext"))
-    }
-
-    @Test
-    fun editSizeRoundsTo32AndKeepsSmallSources() {
-        assertEquals("800x608", ImageSpec.editSize(800, 608, "klein"))
-        assertEquals("32x32", ImageSpec.editSize(10, 10, "klein"))
+    fun editOutputFallsBackForUnknownDimensions() {
+        assertEquals(1024 to 1024, ImageSpec.editOutputSize(0, 100))
+        assertEquals(1024 to 1024, ImageSpec.editOutputSize(100, -1))
     }
 
     @Test

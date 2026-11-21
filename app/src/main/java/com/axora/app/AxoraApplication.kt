@@ -35,9 +35,7 @@ class AxoraApplication : Application() {
         DefaultChatRepository(
             settings = settingsRepository,
             chatDao = database.chatDao(),
-            imageApiService = NetworkModule.imageApiService,
-            videoApiService = NetworkModule.videoApiService,
-            audioApiService = NetworkModule.audioApiService,
+            cloudflareApiService = NetworkModule.cloudflareApiService,
             textApiService = NetworkModule.textApiService,
             translationClient = NetworkModule.translationClient,
             context = this

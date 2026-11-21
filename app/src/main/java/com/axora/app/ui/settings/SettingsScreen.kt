@@ -34,7 +34,6 @@ import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.SaveAlt
@@ -59,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.axora.app.BuildConfig
 import com.axora.app.R
@@ -69,11 +69,11 @@ import com.axora.app.ui.viewmodel.UpdateStatus
 import com.axora.app.ui.viewmodel.UpdateUiState
 import java.io.File
 
-private const val MODEL_KLEIN = "black-forest-labs/flux.2-klein-4b"
-private const val MODEL_KONTEXT = "black-forest-labs/flux.1-kontext-pro"
-private const val MODEL_FLUX_PRO = "black-forest-labs/flux.2-pro"
-private const val TEXT_MODEL_QWEN = "qwen/qwen3guard-gen-8b"
 private const val FEEDBACK_URL = "https://github.com/denvisss/AxoraAI/discussions/1"
+private const val REPO_URL = "https://github.com/denvisss/AxoraAI"
+private const val GROQ_KEYS_URL = "https://console.groq.com/keys"
+private const val CLOUDFLARE_SIGNUP_URL = "https://dash.cloudflare.com/sign-up"
+private const val CLOUDFLARE_TOKENS_URL = "https://dash.cloudflare.com/profile/api-tokens"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,12 +137,12 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 if (connection) {
                     ConnectionSettings(
-                        apiKey = state.apiKey,
-                        onApiKeySave = viewModel::setApiKey,
-                        imageModel = state.imageModel,
-                        onImageModelChange = viewModel::setImageModel,
-                        textModel = state.textModel,
-                        onTextModelChange = viewModel::setTextModel,
+                        groqApiKey = state.groqApiKey,
+                        onGroqKeySave = viewModel::setGroqApiKey,
+                        cfAccountId = state.cfAccountId,
+                        onCfAccountIdSave = viewModel::setCfAccountId,
+                        cfApiToken = state.cfApiToken,
+                        onCfApiTokenSave = viewModel::setCfApiToken,
                         keyStorageEncrypted = state.keyStorageEncrypted
                     )
                 } else {
@@ -161,6 +161,9 @@ fun SettingsScreen(
                         onDownloadUpdate = viewModel::downloadUpdate,
                         mediaSize = state.mediaSize,
                         onClearMedia = viewModel::clearMedia,
+                        allKeysConnected = state.groqApiKey.isNotBlank() &&
+                            state.cfAccountId.isNotBlank() &&
+                            state.cfApiToken.isNotBlank(),
                         onOpenConnection = { showConnection = true }
                     )
                 }
@@ -186,6 +189,7 @@ private fun MainSettings(
     onDownloadUpdate: () -> Unit,
     mediaSize: Long,
     onClearMedia: () -> Unit,
+    allKeysConnected: Boolean,
     onOpenConnection: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -379,7 +383,9 @@ private fun MainSettings(
                     color = scheme.onSurface
                 )
                 Text(
-                    text = stringResource(R.string.connection_subtitle),
+                    text = stringResource(
+                        if (allKeysConnected) R.string.connection_all_set else R.string.connection_subtitle
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant
                 )
@@ -433,10 +439,10 @@ private fun MainSettings(
         Spacer(modifier = Modifier.height(8.dp))
         LinkRow(
             icon = Icons.Rounded.Public,
-            title = stringResource(R.string.about_site),
+            title = stringResource(R.string.about_repo),
             trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
             onClick = {
-                context.startActivity(Intent(Intent.ACTION_VIEW, "https://pollinations.ai".toUri()))
+                context.startActivity(Intent(Intent.ACTION_VIEW, REPO_URL.toUri()))
             }
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -758,40 +764,33 @@ private fun LinkRow(
 
 @Composable
 private fun ConnectionSettings(
-    apiKey: String,
-    onApiKeySave: (String) -> Unit,
-    imageModel: String,
-    onImageModelChange: (String) -> Unit,
-    textModel: String,
-    onTextModelChange: (String) -> Unit,
+    groqApiKey: String,
+    onGroqKeySave: (String) -> Unit,
+    cfAccountId: String,
+    onCfAccountIdSave: (String) -> Unit,
+    cfApiToken: String,
+    onCfApiTokenSave: (String) -> Unit,
     keyStorageEncrypted: Boolean
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
 
-    var keyDraft by remember(apiKey) { mutableStateOf(apiKey) }
-    val currentDraft by rememberUpdatedState(keyDraft)
-    val currentSave by rememberUpdatedState(onApiKeySave)
+    var groqDraft by remember(groqApiKey) { mutableStateOf(groqApiKey) }
+    var accountDraft by remember(cfAccountId) { mutableStateOf(cfAccountId) }
+    var tokenDraft by remember(cfApiToken) { mutableStateOf(cfApiToken) }
+    val currentGroqDraft by rememberUpdatedState(groqDraft)
+    val currentAccountDraft by rememberUpdatedState(accountDraft)
+    val currentTokenDraft by rememberUpdatedState(tokenDraft)
+    val saveGroqKey by rememberUpdatedState(onGroqKeySave)
+    val saveAccountId by rememberUpdatedState(onCfAccountIdSave)
+    val saveCfToken by rememberUpdatedState(onCfApiTokenSave)
     DisposableEffect(Unit) {
-        onDispose { currentSave(currentDraft) }
+        onDispose {
+            saveGroqKey(currentGroqDraft)
+            saveAccountId(currentAccountDraft)
+            saveCfToken(currentTokenDraft)
+        }
     }
-
-    val imageModels = listOf(
-        ModelInfo(
-            SettingsRepository.FREE_IMAGE_MODEL,
-            stringResource(R.string.image_model_free_title),
-            null,
-            stringResource(R.string.image_model_free_desc)
-        ),
-        ModelInfo(MODEL_KLEIN, "Klein 4B", stringResource(R.string.price_klein), stringResource(R.string.image_model_klein_desc)),
-        ModelInfo(MODEL_KONTEXT, "Kontext Pro", stringResource(R.string.price_kontext), stringResource(R.string.image_model_kontext_desc)),
-        ModelInfo(MODEL_FLUX_PRO, "FLUX.2 Pro", stringResource(R.string.price_flux_pro), stringResource(R.string.image_model_flux_pro_desc))
-    )
-    val textModels = listOf(
-        ModelInfo(SettingsRepository.DEFAULT_TEXT_MODEL, stringResource(R.string.text_model_openai_title), null, stringResource(R.string.text_model_openai_desc)),
-        ModelInfo(TEXT_MODEL_QWEN, stringResource(R.string.text_model_qwen_title), null, stringResource(R.string.text_model_qwen_desc))
-    )
-    val apiRequired = imageModel != SettingsRepository.FREE_IMAGE_MODEL || textModel != SettingsRepository.DEFAULT_TEXT_MODEL
 
     if (!keyStorageEncrypted) {
         Surface(
@@ -820,162 +819,101 @@ private fun ConnectionSettings(
     }
 
     SettingsCard {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TonalIcon(Icons.Rounded.Image)
-            Column {
-                Text(
-                    text = stringResource(R.string.image_model_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = scheme.onSurface
-                )
-                Text(
-                    text = stringResource(R.string.image_model_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant
-                )
-            }
-        }
+        ProviderHeader(
+            icon = Icons.Rounded.SmartToy,
+            title = stringResource(R.string.provider_groq_title),
+            subtitle = stringResource(R.string.provider_groq_subtitle),
+            connected = groqApiKey.isNotBlank()
+        )
         Spacer(modifier = Modifier.height(12.dp))
-        imageModels.forEachIndexed { index, info ->
-            if (index > 0) Spacer(modifier = Modifier.height(8.dp))
-            ModelOption(
-                info = info,
-                selected = imageModel == info.id,
-                onClick = { onImageModelChange(info.id) }
-            )
-        }
+        SettingsField(
+            label = stringResource(R.string.groq_key_label),
+            value = groqDraft,
+            placeholder = stringResource(R.string.groq_key_placeholder),
+            hideText = true,
+            onValueChange = { groqDraft = it }
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = stringResource(R.string.api_key_save_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        SummaryLine(Icons.Rounded.SmartToy, stringResource(R.string.groq_limits))
+        Spacer(modifier = Modifier.height(12.dp))
+        GradientButton(
+            icon = Icons.Rounded.Key,
+            text = stringResource(R.string.get_groq_key),
+            onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, GROQ_KEYS_URL.toUri()))
+            }
+        )
     }
 
     Spacer(modifier = Modifier.height(12.dp))
 
     SettingsCard {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TonalIcon(Icons.Rounded.SmartToy)
-            Column {
-                Text(
-                    text = stringResource(R.string.model_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = scheme.onSurface
-                )
-                Text(
-                    text = stringResource(R.string.model_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant
-                )
-            }
-        }
+        ProviderHeader(
+            icon = Icons.Rounded.Image,
+            title = stringResource(R.string.provider_cf_title),
+            subtitle = stringResource(R.string.provider_cf_subtitle),
+            connected = cfAccountId.isNotBlank() && cfApiToken.isNotBlank()
+        )
         Spacer(modifier = Modifier.height(12.dp))
-        textModels.forEachIndexed { index, info ->
-            if (index > 0) Spacer(modifier = Modifier.height(8.dp))
-            ModelOption(
-                info = info,
-                selected = textModel == info.id,
-                onClick = { onTextModelChange(info.id) }
-            )
-        }
-    }
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    SettingsCard {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TonalIcon(Icons.Rounded.Key)
-            Column {
-                Text(
-                    text = stringResource(R.string.api_key_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = scheme.onSurface
-                )
-                Text(
-                    text = stringResource(R.string.api_key_subtitle),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant
-                )
-            }
-        }
+        SettingsField(
+            label = stringResource(R.string.cf_account_label),
+            value = accountDraft,
+            placeholder = stringResource(R.string.cf_account_hint),
+            hideText = false,
+            onValueChange = { accountDraft = it }
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        SettingsField(
+            label = stringResource(R.string.cf_token_label),
+            value = tokenDraft,
+            placeholder = stringResource(R.string.cf_token_placeholder),
+            hideText = true,
+            onValueChange = { tokenDraft = it }
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = stringResource(R.string.api_key_save_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        SummaryLine(Icons.Rounded.Image, stringResource(R.string.cf_limits))
         Spacer(modifier = Modifier.height(12.dp))
-        if (apiRequired) {
-            OutlinedTextField(
-                value = keyDraft,
-                onValueChange = { keyDraft = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        stringResource(R.string.api_key_placeholder),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = scheme.onSurfaceVariant
-                    )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(
+                onClick = {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, CLOUDFLARE_SIGNUP_URL.toUri()))
                 },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(onDone = { onApiKeySave(keyDraft) }),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = scheme.primary,
-                    unfocusedBorderColor = scheme.outlineVariant,
-                    focusedContainerColor = scheme.surfaceContainerHighest,
-                    unfocusedContainerColor = scheme.surfaceContainerHighest,
-                    cursorColor = scheme.primary
-                ),
-                shape = RoundedCornerShape(16.dp)
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = stringResource(R.string.api_key_save_hint),
-                style = MaterialTheme.typography.labelSmall,
-                color = scheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            val selectedImage = imageModels.firstOrNull { it.id == imageModel && it.price != null }
-            if (selectedImage != null) {
-                SummaryLine(
-                    Icons.Rounded.Image,
-                    stringResource(R.string.api_summary_image, selectedImage.title, selectedImage.price.orEmpty())
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-            if (textModel == TEXT_MODEL_QWEN) {
-                SummaryLine(Icons.Rounded.SmartToy, stringResource(R.string.api_summary_text))
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-            if (keyDraft.isBlank()) {
-                Text(
-                    text = stringResource(R.string.api_key_needed),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.tertiary
-                )
-                if (imageModel != SettingsRepository.FREE_IMAGE_MODEL) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, scheme.outlineVariant),
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text = stringResource(R.string.api_free_fallback),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant
+                        text = stringResource(R.string.cf_signup),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = scheme.onSurface
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
             Surface(
                 onClick = {
-                    val intent = Intent(
-                        Intent.ACTION_VIEW,
-                        "https://enter.pollinations.ai/keys".toUri()
-                    )
-                    context.startActivity(intent)
+                    context.startActivity(Intent(Intent.ACTION_VIEW, CLOUDFLARE_TOKENS_URL.toUri()))
                 },
                 shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.weight(1f)
             ) {
                 Box(
                     modifier = Modifier
@@ -986,56 +924,19 @@ private fun ConnectionSettings(
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Key,
                             contentDescription = null,
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = stringResource(R.string.get_api_key),
+                            text = stringResource(R.string.get_cf_token),
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = Color.White
-                        )
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-        } else {
-            Surface(
-                color = scheme.surfaceContainerHighest,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Lock,
-                        contentDescription = null,
-                        tint = scheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Column {
-                        Text(
-                            text = stringResource(R.string.api_not_required_title),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = scheme.onSurface
-                        )
-                        Text(
-                            text = stringResource(R.string.api_not_required_desc),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = scheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1044,71 +945,141 @@ private fun ConnectionSettings(
     }
 }
 
-private data class ModelInfo(
-    val id: String,
-    val title: String,
-    val price: String?,
-    val description: String
-)
+@Composable
+private fun ProviderHeader(icon: ImageVector, title: String, subtitle: String, connected: Boolean) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        TonalIcon(icon)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        StatusChip(connected)
+    }
+}
 
 @Composable
-private fun ModelOption(info: ModelInfo, selected: Boolean, onClick: () -> Unit) {
+private fun StatusChip(connected: Boolean) {
     val scheme = MaterialTheme.colorScheme
     val dark = scheme.surface.luminance() < 0.5f
-    val freeBg = if (dark) Color(0xFF1C3A2A) else Color(0xFFDFF3E4)
-    val freeFg = if (dark) Color(0xFF8FDCA8) else Color(0xFF146C3A)
+    val bg = if (connected) {
+        if (dark) Color(0xFF1C3A2A) else Color(0xFFDFF3E4)
+    } else {
+        if (dark) Color(0xFF3A2E1C) else Color(0xFFF7ECD8)
+    }
+    val fg = if (connected) {
+        if (dark) Color(0xFF8FDCA8) else Color(0xFF146C3A)
+    } else {
+        if (dark) Color(0xFFF2C979) else Color(0xFF8A5A00)
+    }
+    Surface(shape = RoundedCornerShape(8.dp), color = bg) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = if (connected) Icons.Rounded.CheckCircle else Icons.Rounded.Key,
+                contentDescription = null,
+                tint = fg,
+                modifier = Modifier.size(12.dp)
+            )
+            Text(
+                text = stringResource(
+                    if (connected) R.string.status_connected else R.string.status_needs_setup
+                ),
+                style = MaterialTheme.typography.labelSmall,
+                color = fg
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsField(
+    label: String,
+    value: String,
+    placeholder: String,
+    hideText: Boolean,
+    onValueChange: (String) -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        placeholder = {
+            Text(
+                placeholder,
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurfaceVariant
+            )
+        },
+        singleLine = true,
+        visualTransformation = if (hideText) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (hideText) KeyboardType.Password else KeyboardType.Text,
+            imeAction = ImeAction.Done
+        ),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = scheme.primary,
+            unfocusedBorderColor = scheme.outlineVariant,
+            focusedContainerColor = scheme.surfaceContainerHighest,
+            unfocusedContainerColor = scheme.surfaceContainerHighest,
+            cursorColor = scheme.primary
+        ),
+        shape = RoundedCornerShape(16.dp)
+    )
+}
+
+@Composable
+private fun GradientButton(icon: ImageVector, text: String, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        color = if (selected) scheme.primary.copy(alpha = 0.10f) else scheme.surfaceContainerHighest,
-        border = if (selected) {
-            BorderStroke(1.5.dp, scheme.primary.copy(alpha = 0.65f))
-        } else {
-            BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.6f))
-        },
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(AxoraGradient)
+                .padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = info.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = scheme.onSurface
-                    )
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (info.price == null) freeBg else scheme.secondaryContainer
-                    ) {
-                        Text(
-                            text = info.price ?: stringResource(R.string.badge_free),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (info.price == null) freeFg else scheme.onSecondaryContainer,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp)
+                )
                 Text(
-                    text = info.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant
+                    text = text,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.OpenInNew,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(16.dp)
                 )
             }
-            Icon(
-                imageVector = if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                contentDescription = null,
-                tint = if (selected) scheme.primary else scheme.outlineVariant,
-                modifier = Modifier.size(22.dp)
-            )
         }
     }
 }

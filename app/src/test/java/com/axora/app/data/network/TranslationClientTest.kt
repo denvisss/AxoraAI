@@ -44,45 +44,44 @@ class TranslationClientTest {
 
     @Test
     fun latinTextSkipsNetwork() = runBlocking {
-        assertEquals("red cat", translator.translateToEnglish("red cat"))
+        assertEquals("red cat", translator.translateToEnglish("red cat", groqApiKey = "test-placeholder"))
         assertNull(capturedRequest)
     }
 
     @Test
-    fun cyrillicTextUsesClassicEndpointWithoutKey() = runBlocking {
-        assertEquals("a red cat", translator.translateToEnglish("рыжий кот"))
-
-        val request = capturedRequest!!
-        assertEquals("text.pollinations.ai", request.url.host)
-        assertNull(request.header("Authorization"))
-        assertTrue(capturedBody.contains("\"content\":\"рыжий кот\""))
-        assertTrue(capturedBody.contains("\"role\":\"system\""))
+    fun cyrillicWithoutKeySkipsNetwork() = runBlocking {
+        assertEquals("рыжий кот", translator.translateToEnglish("рыжий кот", groqApiKey = null))
+        assertNull(capturedRequest)
     }
 
     @Test
-    fun cyrillicTextWithKeyUsesKeyedEndpointAndBearer() = runBlocking {
-        assertEquals("a red cat", translator.translateToEnglish("рыжий кот", apiKey = "test-placeholder"))
+    fun cyrillicWithKeyPostsToGroqChatCompletions() = runBlocking {
+        assertEquals("a red cat", translator.translateToEnglish("рыжий кот", groqApiKey = "test-placeholder"))
 
         val request = capturedRequest!!
-        assertEquals(KEYED_TEXT_URL, request.url.toString())
+        assertEquals("api.groq.com", request.url.host)
+        assertEquals("/openai/v1/chat/completions", request.url.encodedPath)
         assertEquals("Bearer test-placeholder", request.header("Authorization"))
+        assertTrue(capturedBody.contains("\"model\":\"openai/gpt-oss-120b\""))
+        assertTrue(capturedBody.contains("\"role\":\"system\""))
+        assertTrue(capturedBody.contains("\"content\":\"рыжий кот\""))
     }
 
     @Test
     fun httpErrorFallsBackToOriginalText() = runBlocking {
         responseCode = 500
-        assertEquals("рыжий кот", translator.translateToEnglish("рыжий кот"))
+        assertEquals("рыжий кот", translator.translateToEnglish("рыжий кот", groqApiKey = "test-placeholder"))
     }
 
     @Test
     fun plainTextResponseIsUsedAsTranslation() = runBlocking {
         responseBody = "  a red cat  "
-        assertEquals("a red cat", translator.translateToEnglish("рыжий кот"))
+        assertEquals("a red cat", translator.translateToEnglish("рыжий кот", groqApiKey = "test-placeholder"))
     }
 
     @Test
     fun networkFailureFallsBackToOriginalText() = runBlocking {
         failWithIOException = true
-        assertEquals("рыжий кот", translator.translateToEnglish("рыжий кот"))
+        assertEquals("рыжий кот", translator.translateToEnglish("рыжий кот", groqApiKey = "test-placeholder"))
     }
 }

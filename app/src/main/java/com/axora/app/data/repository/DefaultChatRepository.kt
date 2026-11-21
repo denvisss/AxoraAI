@@ -3,6 +3,7 @@ package com.axora.app.data.repository
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
 import android.util.Base64
@@ -10,15 +11,11 @@ import androidx.core.content.ContextCompat
 import com.axora.app.R
 import com.axora.app.data.local.dao.ChatDao
 import com.axora.app.data.local.entity.ChatMessageEntity
-import com.axora.app.data.network.AudioApiService
 import com.axora.app.data.network.ChatMessageRequest
-import com.axora.app.data.network.ImageApiService
-import com.axora.app.data.network.ImageEditBody
-import com.axora.app.data.network.KEYED_TEXT_URL
+import com.axora.app.data.network.CloudflareApiService
 import com.axora.app.data.network.Message
 import com.axora.app.data.network.TextApiService
 import com.axora.app.data.network.TranslationClient
-import com.axora.app.data.network.VideoApiService
 import com.axora.app.domain.model.ChatMessage
 import com.axora.app.domain.model.GenerationType
 import com.axora.app.domain.model.ImageFormat
@@ -29,16 +26,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import kotlin.random.Random
 
 class DefaultChatRepository(
     private val settings: SettingsRepository,
     private val chatDao: ChatDao,
-    private val imageApiService: ImageApiService,
-    private val videoApiService: VideoApiService,
-    private val audioApiService: AudioApiService,
+    private val cloudflareApiService: CloudflareApiService,
     private val textApiService: TextApiService,
     private val translationClient: TranslationClient,
     private val context: Context
@@ -88,99 +87,47 @@ class DefaultChatRepository(
 
     override fun setImageFormat(format: ImageFormat) = settings.setImageFormat(format)
 
-    override suspend fun generateContent(prompt: String, type: GenerationType): File =
-        withContext(Dispatchers.IO) {
-            val authorization = settings.getApiKey().takeIf { it.isNotBlank() }?.let { "Bearer $it" }
-            val seed = Random.nextInt(0, Int.MAX_VALUE)
-
-            val responseBody = when (type) {
-                GenerationType.IMAGE -> {
-                    val model = settings.getImageModel()
-                    val keyed = authorization != null && model != SettingsRepository.FREE_IMAGE_MODEL
-                    val (width, height) = ImageSpec.generationSize(settings.getImageFormat(), model, keyed)
-                    if (keyed) {
-                        imageApiService.generateHighResolutionImage(prompt, authorization, seed, model, width, height)
-                    } else {
-                        imageApiService.generateImage(prompt, seed, width = width, height = height)
-                    }
-                }
-                GenerationType.VIDEO -> videoApiService.generateVideo(prompt, authorization)
-                GenerationType.AUDIO -> audioApiService.generateAudio(prompt, authorization)
-                GenerationType.TEXT -> throw IllegalArgumentException("TEXT генерируется через generateText")
-            }
-
-            val contentType = responseBody.contentType()?.toString().orEmpty()
-            val expectedPrefix = type.name.lowercase()
-            if (contentType.isNotEmpty() && !contentType.startsWith(expectedPrefix)) {
-                val errorText = runCatching { responseBody.string() }.getOrDefault("")
-                throw IOException(stringsContext.getString(R.string.error_not_media, contentType, errorText.take(200)))
-            }
-
-            val dir = File(context.filesDir, "generated").apply { mkdirs() }
-            val file = File(dir, "${expectedPrefix}_${System.currentTimeMillis()}.${type.extension(contentType)}")
-            try {
-                responseBody.byteStream().use { input ->
-                    file.outputStream().use { output -> input.copyTo(output) }
-                }
-            } catch (e: Throwable) {
-                file.delete()
-                throw e
-            }
-            if (file.length() == 0L) {
-                file.delete()
-                throw IOException(stringsContext.getString(R.string.error_empty_file))
-            }
-            file
-        }
+    override suspend fun generateContent(prompt: String, type: GenerationType): File = when (type) {
+        GenerationType.IMAGE -> generateImage(prompt)
+        GenerationType.TEXT -> throw IllegalArgumentException("TEXT генерируется через generateText")
+        GenerationType.VIDEO, GenerationType.AUDIO ->
+            throw IllegalArgumentException("Неподдерживаемый тип генерации: $type")
+    }
 
     override suspend fun editImage(source: File, instruction: String): File = withContext(Dispatchers.IO) {
-        val key = settings.getApiKey().takeIf { it.isNotBlank() }
-            ?: throw IOException(stringsContext.getString(R.string.edit_key_required))
+        val (account, token) = requireCloudflareCredentials()
         if (!source.exists()) throw IOException(stringsContext.getString(R.string.edit_source_missing))
 
-        val mime = when (source.extension.lowercase()) {
-            "png" -> "image/png"
-            "webp" -> "image/webp"
-            else -> "image/jpeg"
-        }
-        val model = settings.getImageModel().takeIf { it != SettingsRepository.FREE_IMAGE_MODEL }
-            ?: SettingsRepository.DEFAULT_IMAGE_MODEL
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(source.absolutePath, bounds)
-        val response = imageApiService.editImage(
-            "Bearer $key",
-            ImageEditBody(
-                file = source,
-                mime = mime,
-                prompt = instruction,
-                model = model,
-                size = ImageSpec.editSize(bounds.outWidth, bounds.outHeight, model)
-            )
-        )
-        val encoded = response.data?.firstOrNull()?.b64Json
-            ?: throw IOException(stringsContext.getString(R.string.error_no_edited_image))
-        val decoded = Base64.decode(encoded, Base64.DEFAULT)
-        val dir = File(context.filesDir, "generated").apply { mkdirs() }
-        val file = File(dir, "image_${System.currentTimeMillis()}.${ImageSpec.imageExtension(decoded)}")
+        val (width, height) = ImageSpec.editOutputSize(bounds.outWidth, bounds.outHeight)
+
+        val input = downscaleForEdit(source)
         try {
-            file.writeBytes(decoded)
-        } catch (e: Throwable) {
-            file.delete()
-            throw e
+            val body = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("prompt", instruction)
+                .addFormDataPart(
+                    "input_image_0",
+                    input.name,
+                    input.asRequestBody("image/jpeg".toMediaType())
+                )
+                .addFormDataPart("width", width.toString())
+                .addFormDataPart("height", height.toString())
+                .addFormDataPart("seed", Random.nextInt(0, Int.MAX_VALUE).toString())
+                .build()
+            val response = cloudflareApiService.runKlein(kleinUrl(account), "Bearer $token", body)
+            val encoded = response.result?.image?.takeIf { it.isNotBlank() }
+                ?: throw IOException(stringsContext.getString(R.string.error_no_image))
+            saveDecodedImage(Base64.decode(encoded, Base64.DEFAULT))
+        } finally {
+            if (input != source) input.delete()
         }
-        if (file.length() == 0L) {
-            file.delete()
-            throw IOException(stringsContext.getString(R.string.error_empty_file))
-        }
-        file
     }
 
     override suspend fun generateText(prompt: String, history: List<ChatMessage>): String {
-        val apiKey = settings.getApiKey().takeIf { it.isNotBlank() }
-        val model = settings.getTextModel()
-        if (apiKey == null && model != SettingsRepository.DEFAULT_TEXT_MODEL) {
-            throw IOException(stringsContext.getString(R.string.text_key_required))
-        }
+        val apiKey = settings.getGroqApiKey().takeIf { it.isNotBlank() }
+            ?: throw IOException(stringsContext.getString(R.string.groq_key_required))
         val messages = buildList {
             add(Message(role = "system", content = TEXT_SYSTEM_PROMPT))
             history.takeLast(TEXT_CONTEXT_MESSAGES).forEach { message ->
@@ -192,22 +139,93 @@ class DefaultChatRepository(
             add(Message(content = prompt))
         }
         val request = ChatMessageRequest(
+            model = GROQ_TEXT_MODEL,
             messages = messages,
-            model = model,
+            temperature = 0.7,
             max_tokens = TEXT_MAX_TOKENS
         )
-        val response = if (apiKey != null) {
-            textApiService.generateTextKeyed(KEYED_TEXT_URL, request, "Bearer $apiKey")
-        } else {
-            textApiService.generateText(request)
-        }
+        val response = textApiService.chatCompletions(request, "Bearer $apiKey")
         return response.choices?.firstOrNull()?.message?.content?.trim()?.takeIf { it.isNotEmpty() }
             ?: throw IOException(stringsContext.getString(R.string.text_empty))
     }
 
     override suspend fun translateToEnglish(text: String): String =
         if (!settings.isAutoTranslateEnabled()) text
-        else translationClient.translateToEnglish(text, settings.getApiKey().takeIf { it.isNotBlank() })
+        else translationClient.translateToEnglish(text, settings.getGroqApiKey())
+
+    private suspend fun generateImage(prompt: String): File = withContext(Dispatchers.IO) {
+        val (account, token) = requireCloudflareCredentials()
+        val (width, height) = ImageSpec.generationSize(settings.getImageFormat())
+        val body = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("prompt", prompt)
+            .addFormDataPart("width", width.toString())
+            .addFormDataPart("height", height.toString())
+            .addFormDataPart("seed", Random.nextInt(0, Int.MAX_VALUE).toString())
+            .build()
+        val response = cloudflareApiService.runKlein(kleinUrl(account), "Bearer $token", body)
+        val encoded = response.result?.image?.takeIf { it.isNotBlank() }
+            ?: throw IOException(stringsContext.getString(R.string.error_no_image))
+        saveDecodedImage(Base64.decode(encoded, Base64.DEFAULT))
+    }
+
+    private fun requireCloudflareCredentials(): Pair<String, String> {
+        val account = settings.getCfAccountId().takeIf { it.isNotBlank() }
+            ?: throw IOException(stringsContext.getString(R.string.cf_key_required))
+        val token = settings.getCfApiToken().takeIf { it.isNotBlank() }
+            ?: throw IOException(stringsContext.getString(R.string.cf_key_required))
+        return account to token
+    }
+
+    // Входное изображение для правки должно быть меньше 512×512 — Klein отклоняет крупные.
+    private fun downscaleForEdit(source: File): File {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(source.absolutePath, bounds)
+        if (bounds.outWidth <= ImageSpec.EDIT_INPUT_MAX && bounds.outHeight <= ImageSpec.EDIT_INPUT_MAX) {
+            return source
+        }
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= ImageSpec.EDIT_INPUT_MAX &&
+            bounds.outHeight / (sample * 2) >= ImageSpec.EDIT_INPUT_MAX
+        ) {
+            sample *= 2
+        }
+        val bitmap = BitmapFactory.decodeFile(
+            source.absolutePath,
+            BitmapFactory.Options().apply { inSampleSize = sample }
+        ) ?: throw IOException(stringsContext.getString(R.string.edit_source_missing))
+        val scale = minOf(1f, ImageSpec.EDIT_INPUT_MAX.toFloat() / maxOf(bitmap.width, bitmap.height))
+        val scaled = Bitmap.createScaledBitmap(
+            bitmap,
+            (bitmap.width * scale).toInt().coerceAtLeast(1),
+            (bitmap.height * scale).toInt().coerceAtLeast(1),
+            true
+        )
+        val out = File(context.cacheDir, "edit_input_${System.currentTimeMillis()}.jpg")
+        FileOutputStream(out).use { scaled.compress(Bitmap.CompressFormat.JPEG, 92, it) }
+        if (scaled !== bitmap) bitmap.recycle()
+        scaled.recycle()
+        return out
+    }
+
+    private suspend fun saveDecodedImage(bytes: ByteArray): File = withContext(Dispatchers.IO) {
+        val dir = File(context.filesDir, "generated").apply { mkdirs() }
+        val file = File(dir, "image_${System.currentTimeMillis()}.${ImageSpec.imageExtension(bytes)}")
+        try {
+            file.writeBytes(bytes)
+        } catch (e: Throwable) {
+            file.delete()
+            throw e
+        }
+        if (file.length() == 0L) {
+            file.delete()
+            throw IOException(stringsContext.getString(R.string.error_empty_file))
+        }
+        file
+    }
+
+    private fun kleinUrl(account: String): String =
+        "https://api.cloudflare.com/client/v4/accounts/$account/ai/run/@cf/black-forest-labs/flux-2-klein-4b"
 
     private fun deleteMediaFiles(entity: ChatMessageEntity) {
         listOfNotNull(entity.imageUrl, entity.videoUrl, entity.audioUrl).forEach { path ->
@@ -245,18 +263,8 @@ class DefaultChatRepository(
         isError = isError
     )
 
-    private fun GenerationType.extension(contentType: String): String = when (this) {
-        GenerationType.IMAGE -> when (contentType.substringBefore(';')) {
-            "image/png" -> "png"
-            "image/webp" -> "webp"
-            else -> "jpg"
-        }
-        GenerationType.VIDEO -> "mp4"
-        GenerationType.AUDIO -> "mp3"
-        GenerationType.TEXT -> "txt"
-    }
-
     companion object {
+        private const val GROQ_TEXT_MODEL = "openai/gpt-oss-120b"
         private const val TEXT_CONTEXT_MESSAGES = 10
         private const val TEXT_MAX_TOKENS = 1000
         private const val TEXT_SYSTEM_PROMPT =

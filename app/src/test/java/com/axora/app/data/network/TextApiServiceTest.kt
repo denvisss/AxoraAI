@@ -9,7 +9,6 @@ import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import retrofit2.Retrofit
@@ -21,7 +20,7 @@ class TextApiServiceTest {
     private var capturedBody: String = ""
 
     private val service = Retrofit.Builder()
-        .baseUrl("https://text.pollinations.ai/")
+        .baseUrl("https://api.groq.com/")
         .client(
             OkHttpClient.Builder()
                 .addInterceptor { chain ->
@@ -47,38 +46,25 @@ class TextApiServiceTest {
         .create(TextApiService::class.java)
 
     @Test
-    fun classicTextPostsToOpenaiEndpoint() = runBlocking {
-        val response = service.generateText(
+    fun chatCompletionsPostsToGroqWithBearer() = runBlocking {
+        val response = service.chatCompletions(
             ChatMessageRequest(
+                model = "openai/gpt-oss-120b",
                 messages = listOf(Message(role = "user", content = "привет")),
+                temperature = 0.7,
                 max_tokens = 1000
-            )
-        )
-        assertEquals("Привет!", response.choices?.firstOrNull()?.message?.content)
-
-        assertEquals("POST", capturedRequest.method)
-        assertEquals("text.pollinations.ai", capturedRequest.url.host)
-        assertEquals("/openai", capturedRequest.url.encodedPath)
-        assertNull(capturedRequest.header("Authorization"))
-        assertTrue(capturedBody.contains("\"model\":\"openai\""))
-        assertTrue(capturedBody.contains("\"max_tokens\":1000"))
-        assertTrue(capturedBody.contains("\"content\":\"привет\""))
-    }
-
-    @Test
-    fun keyedTextUsesFullUrlAndBearerHeader() = runBlocking {
-        val response = service.generateTextKeyed(
-            url = KEYED_TEXT_URL,
-            request = ChatMessageRequest(
-                model = "qwen3guard-8b",
-                messages = listOf(Message(role = "user", content = "hi"))
             ),
             authorization = "Bearer test-placeholder"
         )
         assertEquals("Привет!", response.choices?.firstOrNull()?.message?.content)
 
-        assertEquals(KEYED_TEXT_URL, capturedRequest.url.toString())
+        assertEquals("POST", capturedRequest.method)
+        assertEquals("api.groq.com", capturedRequest.url.host)
+        assertEquals("/openai/v1/chat/completions", capturedRequest.url.encodedPath)
         assertEquals("Bearer test-placeholder", capturedRequest.header("Authorization"))
-        assertTrue(capturedBody.contains("\"model\":\"qwen3guard-8b\""))
+        assertTrue(capturedBody.contains("\"model\":\"openai/gpt-oss-120b\""))
+        assertTrue(capturedBody.contains("\"max_tokens\":1000"))
+        assertTrue(capturedBody.contains("\"temperature\":0.7"))
+        assertTrue(capturedBody.contains("\"content\":\"привет\""))
     }
 }

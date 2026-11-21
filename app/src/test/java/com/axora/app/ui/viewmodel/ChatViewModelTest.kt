@@ -154,12 +154,12 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun freeLimitHttpErrorIsMapped() = runTest(dispatcher) {
-        repository.failWith = httpError(402, "FREE_LIMIT exceeded")
+    fun rateLimitHttpErrorIsMapped() = runTest(dispatcher) {
+        repository.failWith = httpError(429, "{\"errors\":[[429,\"rate limited\"]]}")
         viewModel.sendMessage("кот")
         advanceUntilIdle()
 
-        assertEquals("res:${R.string.error_free_limit}", viewModel.uiState.value.error)
+        assertEquals("res:${R.string.error_rate_limited}", viewModel.uiState.value.error)
     }
 
     @Test

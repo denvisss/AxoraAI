@@ -14,7 +14,7 @@ class SettingsRepository(private val context: Context) {
     private var securePrefsFailed = false
 
     private val prefs: SharedPreferences by lazy {
-        try {
+        val created = try {
             val masterKey = MasterKey.Builder(context)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
                 .build()
@@ -29,10 +29,17 @@ class SettingsRepository(private val context: Context) {
             securePrefsFailed = true
             context.getSharedPreferences(SECURE_PREFS_NAME, Context.MODE_PRIVATE)
         }
+        created.edit { remove(KEY_LEGACY_API_KEY) }
+        created
     }
 
     private val appPrefs: SharedPreferences by lazy {
-        context.getSharedPreferences(APP_PREFS_NAME, Context.MODE_PRIVATE)
+        context.getSharedPreferences(APP_PREFS_NAME, Context.MODE_PRIVATE).also {
+            it.edit {
+                remove(KEY_LEGACY_TEXT_MODEL)
+                remove(KEY_LEGACY_IMAGE_MODEL)
+            }
+        }
     }
 
     val isKeyStorageEncrypted: Boolean
@@ -41,24 +48,22 @@ class SettingsRepository(private val context: Context) {
             return !securePrefsFailed
         }
 
-    fun getApiKey(): String = prefs.getString(KEY_API_KEY, null)?.trim().orEmpty()
+    fun getGroqApiKey(): String = prefs.getString(KEY_GROQ_API_KEY, null)?.trim().orEmpty()
 
-    fun setApiKey(key: String) {
-        prefs.edit { putString(KEY_API_KEY, key.trim()) }
+    fun setGroqApiKey(key: String) {
+        prefs.edit { putString(KEY_GROQ_API_KEY, key.trim()) }
     }
 
-    fun getTextModel(): String =
-        prefs.getString(KEY_TEXT_MODEL, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_TEXT_MODEL
+    fun getCfAccountId(): String = appPrefs.getString(KEY_CF_ACCOUNT_ID, null)?.trim().orEmpty()
 
-    fun setTextModel(model: String) {
-        prefs.edit { putString(KEY_TEXT_MODEL, model.trim()) }
+    fun setCfAccountId(id: String) {
+        appPrefs.edit { putString(KEY_CF_ACCOUNT_ID, id.trim()) }
     }
 
-    fun getImageModel(): String =
-        prefs.getString(KEY_IMAGE_MODEL, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_IMAGE_MODEL
+    fun getCfApiToken(): String = prefs.getString(KEY_CF_API_TOKEN, null)?.trim().orEmpty()
 
-    fun setImageModel(model: String) {
-        prefs.edit { putString(KEY_IMAGE_MODEL, model.trim()) }
+    fun setCfApiToken(token: String) {
+        prefs.edit { putString(KEY_CF_API_TOKEN, token.trim()) }
     }
 
     fun isAutoSaveEnabled(): Boolean = appPrefs.getBoolean(KEY_AUTO_SAVE, false)
@@ -110,18 +115,18 @@ class SettingsRepository(private val context: Context) {
     }
 
     companion object {
-        const val FREE_IMAGE_MODEL = "free"
-        const val DEFAULT_IMAGE_MODEL = "black-forest-labs/flux.2-klein-4b"
-        const val DEFAULT_TEXT_MODEL = "openai"
         const val LANGUAGE_RU = "ru"
         const val LANGUAGE_EN = "en"
         const val DEFAULT_LANGUAGE = LANGUAGE_RU
 
         private const val SECURE_PREFS_NAME = "axora_secure_prefs"
         private const val APP_PREFS_NAME = "axora_prefs"
-        private const val KEY_API_KEY = "pollinations_api_key"
-        private const val KEY_TEXT_MODEL = "text_model"
-        private const val KEY_IMAGE_MODEL = "image_model"
+        private const val KEY_GROQ_API_KEY = "groq_api_key"
+        private const val KEY_CF_ACCOUNT_ID = "cf_account_id"
+        private const val KEY_CF_API_TOKEN = "cf_api_token"
+        private const val KEY_LEGACY_API_KEY = "pollinations_api_key"
+        private const val KEY_LEGACY_TEXT_MODEL = "text_model"
+        private const val KEY_LEGACY_IMAGE_MODEL = "image_model"
         private const val KEY_AUTO_SAVE = "auto_save_gallery"
         private const val KEY_AUTO_TRANSLATE = "auto_translate"
         private const val KEY_DARK_THEME = "dark_theme"

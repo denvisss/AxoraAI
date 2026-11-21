@@ -56,7 +56,7 @@
     <string name="action_edit_image">Изменить изображение</string>
     <string name="edit_image_title">Что изменить на изображении?</string>
     <string name="edit_image_hint">Например: сделай небо закатным, убери человека на фоне</string>
-    <string name="edit_image_note">Нужен API-ключ Pollinations. Правка расходует баланс и сохраняет исходное изображение.</string>
+    <string name="edit_image_note">Правка требует бесплатный ключ Cloudflare — подключите его в настройках. Исходное изображение сохраняется.</string>
 
     <!-- Toasts -->
     <string name="no_mic_permission">Нет разрешения на микрофон</string>
@@ -68,37 +68,30 @@
 
     <!-- Settings -->
     <string name="settings_title">Настройки</string>
-    <string name="api_key_title">API ключ</string>
-    <string name="api_key_subtitle">enter.pollinations.ai/keys — бесплатно</string>
-    <string name="api_key_placeholder">sk_…</string>
-    <string name="get_api_key">Получить API ключ</string>
-    <string name="api_not_required_title">Ввод API не требуется</string>
-    <string name="api_not_required_desc">Выбранные модели работают бесплатно и без ключа</string>
-    <string name="api_key_needed">Добавьте ключ, чтобы использовать выбранные модели</string>
-    <string name="api_free_fallback">Без ключа изображения создаются бесплатно в 768 × 768</string>
-    <string name="api_summary_image">Изображения: %1$s — %2$s</string>
-    <string name="api_summary_text">Текст: Qwen3Guard 8B — бесплатно</string>
-    <string name="model_title">Модель текста</string>
-    <string name="model_subtitle">Для генерации текста в чате</string>
-    <string name="text_model_openai_title">GPT-5.4 Nano</string>
-    <string name="text_model_openai_desc">Без ключа • 1 запрос в 45 секунд</string>
-    <string name="text_model_qwen_title">Qwen3Guard 8B</string>
-    <string name="text_model_qwen_desc">Нужен API-ключ • без оплаты</string>
-    <string name="image_model_title">Модель изображений</string>
-    <string name="image_model_subtitle">Бесплатные и платные модели Pollinations</string>
-    <string name="badge_free">Бесплатно</string>
-    <string name="image_model_free_title">Flux</string>
-    <string name="image_model_free_desc">Без ключа и оплаты • до 768 × 768 • без редактирования</string>
-    <string name="image_model_klein_desc">За изображение • до 1536 × 1536 • быстро • есть редактирование</string>
-    <string name="image_model_kontext_desc">За изображение • 1024 × 1024 • бережно сохраняет исходник</string>
-    <string name="image_model_flux_pro_desc">За мегапиксель • максимальная точность • нужен платный баланс</string>
-    <string name="price_klein">0.005 pollen</string>
-    <string name="price_kontext">0.03 pollen</string>
-    <string name="price_flux_pro">0.01125 pollen/МП</string>
     <string name="section_app">Приложение</string>
     <string name="section_connection">Подключение</string>
-    <string name="connection_title">API и модели</string>
-    <string name="connection_subtitle">Ключ Pollinations, модели изображений и текста</string>
+    <string name="connection_title">Подключение сервисов</string>
+    <string name="connection_subtitle">Бесплатные ключи Groq и Cloudflare</string>
+    <string name="connection_all_set">Все ключи подключены</string>
+    <string name="status_connected">Подключено</string>
+    <string name="status_needs_setup">Требуется настройка</string>
+    <string name="provider_groq_title">Groq</string>
+    <string name="provider_groq_subtitle">Чат и перевод промптов</string>
+    <string name="groq_key_label">API-ключ Groq</string>
+    <string name="groq_key_placeholder">gsk_…</string>
+    <string name="get_groq_key">Получить бесплатный ключ</string>
+    <string name="groq_limits">Бесплатно: около 1000 сообщений в день</string>
+    <string name="groq_key_required">Для чата подключите бесплатный ключ Groq в настройках</string>
+    <string name="provider_cf_title">Cloudflare</string>
+    <string name="provider_cf_subtitle">Генерация и правка изображений</string>
+    <string name="cf_account_label">Account ID</string>
+    <string name="cf_account_hint">Cloudflare Dashboard → Workers AI → Use REST API</string>
+    <string name="cf_token_label">API-токен Workers AI</string>
+    <string name="cf_token_placeholder">Токен с доступом к Workers AI</string>
+    <string name="cf_signup">Создать аккаунт</string>
+    <string name="get_cf_token">Создать токен</string>
+    <string name="cf_limits">Бесплатно: около 90 изображений в день</string>
+    <string name="cf_key_required">Для генерации изображений подключите бесплатный ключ Cloudflare в настройках</string>
     <string name="dark_theme_title">Тёмная тема</string>
     <string name="dark_theme_subtitle">Переключить оформление</string>
     <string name="language_title">Язык приложения</string>
@@ -143,11 +136,11 @@
     <!-- Settings: about -->
     <string name="section_about">О приложении</string>
     <string name="about_version">Версия %1$s</string>
-    <string name="about_site">Сайт Pollinations</string>
+    <string name="about_repo">GitHub проекта</string>
     <string name="about_share">Поделиться приложением</string>
-    <string name="about_share_text">Axora — генерация изображений и текста через Pollinations AI. https://pollinations.ai</string>
+    <string name="about_share_text">Axora — генерация изображений и текста. https://github.com/denvisss/AxoraAI</string>
     <string name="about_feedback">Написать разработчику</string>
-    <string name="about_disclaimer">Независимый open-source проект, не аффилированный с Pollinations.ai. Медиа генерируется через публичный API pollinations.ai; ключи доступа выпускаются сервисом и хранятся на устройстве в зашифрованном виде.</string>
+    <string name="about_disclaimer">Независимый open-source проект. Чат работает через Groq, изображения — через Cloudflare Workers AI; бесплатные ключи выпускаются этими сервисами и хранятся на устройстве в зашифрованном виде.</string>
     <string name="about_license">Лицензия MIT © 2026 denvisss. Обязательно указание автора и исходного проекта AxoraAI.</string>
 
     <!-- Coming soon -->
@@ -164,22 +157,16 @@
     <!-- Errors -->
     <string name="error_offline">Нет подключения к интернету</string>
     <string name="error_timeout">Сервер не ответил вовремя. Попробуйте ещё раз</string>
-    <string name="error_free_limit">Бесплатный лимит исчерпан. Добавьте API-ключ или подождите</string>
-    <string name="error_model_key_required">Эта модель доступна только с API-ключом</string>
     <string name="error_invalid_key">Неверный API-ключ. Проверьте его в настройках</string>
-    <string name="error_insufficient_balance">Недостаточно средств на балансе Pollinations</string>
-    <string name="error_rate_limited">Слишком много запросов. Подождите немного</string>
+    <string name="error_rate_limited">Слишком много запросов или дневной бесплатный лимит исчерпан. Попробуйте позже</string>
     <string name="error_service_unavailable">Сервис временно перегружен. Повторите через несколько секунд</string>
     <string name="error_http">Ошибка сервера: %1$d</string>
     <string name="error_http_detail">Ошибка %1$d: %2$s</string>
     <string name="error_unknown">Неизвестная ошибка</string>
     <string name="error_unknown_detail">Ошибка: %1$s</string>
     <string name="error_empty_file">Сервер вернул пустой файл</string>
-    <string name="error_not_media">Сервер вернул не медиафайл (%1$s): %2$s</string>
-    <string name="error_no_edited_image">Сервер не вернул изменённое изображение</string>
-    <string name="edit_key_required">Для изменения изображения нужен API-ключ Pollinations</string>
+    <string name="error_no_image">Сервис не вернул изображение. Попробуйте ещё раз</string>
     <string name="edit_source_missing">Исходное изображение недоступно</string>
-    <string name="text_key_required">Для этой текстовой модели нужен API-ключ</string>
     <string name="text_empty">Модель не вернула текст</string>
 
     <!-- Chat actions -->

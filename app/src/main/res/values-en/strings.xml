@@ -56,7 +56,7 @@
     <string name="action_edit_image">Edit image</string>
     <string name="edit_image_title">What should be changed in the image?</string>
     <string name="edit_image_hint">For example: make the sky sunset-colored, remove the person in the background</string>
-    <string name="edit_image_note">Requires a Pollinations API key. Editing spends balance and keeps the original image.</string>
+    <string name="edit_image_note">Editing requires a free Cloudflare key — set it up in settings. The original image is kept.</string>
 
     <!-- Toasts -->
     <string name="no_mic_permission">No microphone permission</string>
@@ -68,37 +68,30 @@
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
-    <string name="api_key_title">API key</string>
-    <string name="api_key_subtitle">enter.pollinations.ai/keys — free</string>
-    <string name="api_key_placeholder">sk_…</string>
-    <string name="get_api_key">Get API key</string>
-    <string name="api_not_required_title">No API key needed</string>
-    <string name="api_not_required_desc">Selected models work for free without a key</string>
-    <string name="api_key_needed">Add a key to use the selected models</string>
-    <string name="api_free_fallback">Without a key, images are generated for free at 768 × 768</string>
-    <string name="api_summary_image">Images: %1$s — %2$s</string>
-    <string name="api_summary_text">Text: Qwen3Guard 8B — free</string>
-    <string name="model_title">Text model</string>
-    <string name="model_subtitle">For text generation in chat</string>
-    <string name="text_model_openai_title">GPT-5.4 Nano</string>
-    <string name="text_model_openai_desc">No key • 1 request per 45 seconds</string>
-    <string name="text_model_qwen_title">Qwen3Guard 8B</string>
-    <string name="text_model_qwen_desc">API key required • no payment</string>
-    <string name="image_model_title">Image model</string>
-    <string name="image_model_subtitle">Free and paid Pollinations models</string>
-    <string name="badge_free">Free</string>
-    <string name="image_model_free_title">Flux</string>
-    <string name="image_model_free_desc">No key or payment • up to 768 × 768 • no editing</string>
-    <string name="image_model_klein_desc">Per image • up to 1536 × 1536 • fast • editing available</string>
-    <string name="image_model_kontext_desc">Per image • 1024 × 1024 • carefully preserves the original</string>
-    <string name="image_model_flux_pro_desc">Per megapixel • maximum precision • paid balance required</string>
-    <string name="price_klein">0.005 pollen</string>
-    <string name="price_kontext">0.03 pollen</string>
-    <string name="price_flux_pro">0.01125 pollen/MP</string>
     <string name="section_app">App</string>
     <string name="section_connection">Connection</string>
-    <string name="connection_title">API and models</string>
-    <string name="connection_subtitle">Pollinations key, image and text models</string>
+    <string name="connection_title">Connect services</string>
+    <string name="connection_subtitle">Free Groq and Cloudflare keys</string>
+    <string name="connection_all_set">All keys connected</string>
+    <string name="status_connected">Connected</string>
+    <string name="status_needs_setup">Setup required</string>
+    <string name="provider_groq_title">Groq</string>
+    <string name="provider_groq_subtitle">Chat and prompt translation</string>
+    <string name="groq_key_label">Groq API key</string>
+    <string name="groq_key_placeholder">gsk_…</string>
+    <string name="get_groq_key">Get a free key</string>
+    <string name="groq_limits">Free: about 1,000 messages per day</string>
+    <string name="groq_key_required">Connect a free Groq key in settings to use chat</string>
+    <string name="provider_cf_title">Cloudflare</string>
+    <string name="provider_cf_subtitle">Image generation and editing</string>
+    <string name="cf_account_label">Account ID</string>
+    <string name="cf_account_hint">Cloudflare Dashboard → Workers AI → Use REST API</string>
+    <string name="cf_token_label">Workers AI API token</string>
+    <string name="cf_token_placeholder">Token with Workers AI access</string>
+    <string name="cf_signup">Create account</string>
+    <string name="get_cf_token">Create token</string>
+    <string name="cf_limits">Free: about 90 images per day</string>
+    <string name="cf_key_required">Connect a free Cloudflare key in settings to generate images</string>
     <string name="dark_theme_title">Dark theme</string>
     <string name="dark_theme_subtitle">Toggle appearance</string>
     <string name="language_title">App language</string>
@@ -143,11 +136,11 @@
     <!-- Settings: about -->
     <string name="section_about">About</string>
     <string name="about_version">Version %1$s</string>
-    <string name="about_site">Pollinations website</string>
+    <string name="about_repo">Project on GitHub</string>
     <string name="about_share">Share the app</string>
-    <string name="about_share_text">Axora — image and text generation via Pollinations AI. https://pollinations.ai</string>
+    <string name="about_share_text">Axora — image and text generation. https://github.com/denvisss/AxoraAI</string>
     <string name="about_feedback">Contact the developer</string>
-    <string name="about_disclaimer">An independent open-source project, not affiliated with Pollinations.ai. Media is generated via the public pollinations.ai API; access keys are issued by the service and stored encrypted on the device.</string>
+    <string name="about_disclaimer">An independent open-source project. Chat runs on Groq, images on Cloudflare Workers AI; free keys are issued by those services and stored encrypted on the device.</string>
     <string name="about_license">MIT License © 2026 denvisss. Attribution to the author and the original AxoraAI project is required.</string>
 
     <!-- Coming soon -->
@@ -164,22 +157,16 @@
     <!-- Errors -->
     <string name="error_offline">No internet connection</string>
     <string name="error_timeout">The server did not respond in time. Try again</string>
-    <string name="error_free_limit">Free limit reached. Add an API key or wait</string>
-    <string name="error_model_key_required">This model is only available with an API key</string>
     <string name="error_invalid_key">Invalid API key. Check it in settings</string>
-    <string name="error_insufficient_balance">Insufficient Pollinations balance</string>
-    <string name="error_rate_limited">Too many requests. Please wait a bit</string>
+    <string name="error_rate_limited">Too many requests or the daily free limit is used up. Try again later</string>
     <string name="error_service_unavailable">The service is temporarily overloaded. Try again in a few seconds</string>
     <string name="error_http">Server error: %1$d</string>
     <string name="error_http_detail">Error %1$d: %2$s</string>
     <string name="error_unknown">Unknown error</string>
     <string name="error_unknown_detail">Error: %1$s</string>
     <string name="error_empty_file">The server returned an empty file</string>
-    <string name="error_not_media">The server returned a non-media response (%1$s): %2$s</string>
-    <string name="error_no_edited_image">The server did not return an edited image</string>
-    <string name="edit_key_required">Editing an image requires a Pollinations API key</string>
+    <string name="error_no_image">The service did not return an image. Try again</string>
     <string name="edit_source_missing">The original image is unavailable</string>
-    <string name="text_key_required">This text model requires an API key</string>
     <string name="text_empty">The model returned no text</string>
 
     <!-- Chat actions -->

@@ -4,30 +4,21 @@ import com.axora.app.domain.model.ImageFormat
 
 object ImageSpec {
 
-    fun generationSize(format: ImageFormat, model: String, keyed: Boolean): Pair<Int, Int> {
-        if (!keyed) {
-            return when (format) {
-                ImageFormat.SQUARE -> 768 to 768
-                ImageFormat.PORTRAIT -> 768 to 1024
-                ImageFormat.LANDSCAPE -> 1024 to 768
-            }
-        }
-        val base = if (model.contains("kontext")) 1024 else 1536
-        val short = base * 3 / 4
-        return when (format) {
-            ImageFormat.SQUARE -> base to base
-            ImageFormat.PORTRAIT -> short to base
-            ImageFormat.LANDSCAPE -> base to short
-        }
+    const val MIN_SIDE = 256
+    const val MAX_SIDE = 1920
+    const val EDIT_OUTPUT_MAX = 1024
+    const val EDIT_INPUT_MAX = 500
+
+    fun generationSize(format: ImageFormat): Pair<Int, Int> = when (format) {
+        ImageFormat.SQUARE -> 1024 to 1024
+        ImageFormat.PORTRAIT -> 896 to 1152
+        ImageFormat.LANDSCAPE -> 1152 to 896
     }
 
-    fun editSize(width: Int, height: Int, model: String): String {
-        if (width <= 0 || height <= 0) return "auto"
-        val maxSide = if (model.contains("kontext")) 1024 else 1536
-        val scale = minOf(1f, maxSide.toFloat() / maxOf(width, height))
-        val w = ((width * scale).toInt() / 32 * 32).coerceAtLeast(32)
-        val h = ((height * scale).toInt() / 32 * 32).coerceAtLeast(32)
-        return "${w}x$h"
+    fun editOutputSize(width: Int, height: Int): Pair<Int, Int> {
+        if (width <= 0 || height <= 0) return EDIT_OUTPUT_MAX to EDIT_OUTPUT_MAX
+        val scale = minOf(1f, EDIT_OUTPUT_MAX.toFloat() / maxOf(width, height))
+        return clampSide(width * scale) to clampSide(height * scale)
     }
 
     fun imageExtension(bytes: ByteArray): String = when {
@@ -35,4 +26,6 @@ object ImageSpec {
         bytes.size > 12 && bytes[8] == 'W'.code.toByte() && bytes[9] == 'E'.code.toByte() -> "webp"
         else -> "jpg"
     }
+
+    private fun clampSide(side: Float): Int = ((side / 32f).toInt() * 32).coerceIn(MIN_SIDE, MAX_SIDE)
 }

@@ -13,12 +13,13 @@ class TranslationClient(
     private val gson: Gson
 ) {
 
-    suspend fun translateToEnglish(text: String, apiKey: String? = null): String =
+    suspend fun translateToEnglish(text: String, groqApiKey: String?): String =
         withContext(Dispatchers.IO) {
             if (!CYRILLIC.containsMatchIn(text)) return@withContext text
+            val key = groqApiKey?.takeIf { it.isNotBlank() } ?: return@withContext text
 
             val request = ChatMessageRequest(
-                model = "openai",
+                model = TEXT_MODEL,
                 messages = listOf(
                     Message(role = "system", content = SYSTEM_PROMPT),
                     Message(role = "user", content = text)
@@ -28,8 +29,8 @@ class TranslationClient(
             )
 
             val httpRequest = Request.Builder()
-                .url(if (apiKey.isNullOrBlank()) CLASSIC_TEXT_URL else KEYED_TEXT_URL)
-                .apply { if (!apiKey.isNullOrBlank()) header("Authorization", "Bearer $apiKey") }
+                .url(GROQ_CHAT_URL)
+                .header("Authorization", "Bearer $key")
                 .post(gson.toJson(request).toRequestBody(JSON))
                 .build()
 
@@ -58,7 +59,8 @@ class TranslationClient(
     }
 
     companion object {
-        private const val CLASSIC_TEXT_URL = "https://text.pollinations.ai/"
+        private const val GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+        private const val TEXT_MODEL = "openai/gpt-oss-120b"
         private val JSON = "application/json".toMediaType()
         private val CYRILLIC = Regex("[А-Яа-яЁё]")
         private const val SYSTEM_PROMPT =

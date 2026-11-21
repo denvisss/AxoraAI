@@ -225,10 +225,7 @@ class ChatViewModel(
         }
         val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull().orEmpty()
         return when {
-            e.code() == 402 && body.contains("FREE_LIMIT") -> strings.get(R.string.error_free_limit)
-            e.code() == 404 && body.contains("Classic API") -> strings.get(R.string.error_model_key_required)
             e.code() == 401 -> strings.get(R.string.error_invalid_key)
-            e.code() == 402 -> strings.get(R.string.error_insufficient_balance)
             e.code() == 429 -> strings.get(R.string.error_rate_limited)
             e.code() == 503 -> strings.get(R.string.error_service_unavailable)
             body.isBlank() -> strings.get(R.string.error_http, e.code())
@@ -239,7 +236,25 @@ class ChatViewModel(
     private fun serverMessage(body: String): String? = runCatching {
         val root = JsonParser.parseString(body).asJsonObject
         val error = root.get("error")
-        val message = if (error != null && error.isJsonObject) error.asJsonObject.get("message") else root.get("message")
-        message?.takeIf { it.isJsonPrimitive }?.asString?.takeIf { it.isNotBlank() }
+        if (error != null && error.isJsonObject) {
+            val message = error.asJsonObject.get("message")
+            val text = message?.takeIf { it.isJsonPrimitive }?.asString
+            if (!text.isNullOrBlank()) return@runCatching text
+        }
+        root.get("message")?.takeIf { it.isJsonPrimitive }?.asString
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return@runCatching it }
+        // Cloudflare: {"errors":[[code,"text"]]} или {"errors":[{"message":"..."}]}
+        val errors = root.get("errors")
+        if (errors != null && errors.isJsonArray) {
+            val first = errors.asJsonArray.firstOrNull() ?: return@runCatching null
+            val text = when {
+                first.isJsonArray -> first.asJsonArray.elementAtOrNull(1)?.takeIf { it.isJsonPrimitive }?.asString
+                first.isJsonObject -> first.asJsonObject.get("message")?.takeIf { it.isJsonPrimitive }?.asString
+                else -> null
+            }
+            if (!text.isNullOrBlank()) return@runCatching text
+        }
+        null
     }.getOrNull()
 }

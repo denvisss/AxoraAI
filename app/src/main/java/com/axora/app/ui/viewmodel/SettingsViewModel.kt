@@ -14,9 +14,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
-    val apiKey: String = "",
-    val imageModel: String = SettingsRepository.DEFAULT_IMAGE_MODEL,
-    val textModel: String = SettingsRepository.DEFAULT_TEXT_MODEL,
+    val groqApiKey: String = "",
+    val cfAccountId: String = "",
+    val cfApiToken: String = "",
     val autoSave: Boolean = false,
     val autoTranslate: Boolean = true,
     val darkTheme: Boolean? = null,
@@ -54,9 +54,9 @@ class SettingsViewModel(
     fun refresh() {
         _uiState.update {
             it.copy(
-                apiKey = settings.getApiKey(),
-                imageModel = settings.getImageModel(),
-                textModel = settings.getTextModel(),
+                groqApiKey = settings.getGroqApiKey(),
+                cfAccountId = settings.getCfAccountId(),
+                cfApiToken = settings.getCfApiToken(),
                 autoSave = settings.isAutoSaveEnabled(),
                 autoTranslate = settings.isAutoTranslateEnabled(),
                 darkTheme = settings.isDarkThemeEnabled(),
@@ -73,19 +73,19 @@ class SettingsViewModel(
         }
     }
 
-    fun setApiKey(key: String) {
-        settings.setApiKey(key)
-        _uiState.update { it.copy(apiKey = key.trim()) }
+    fun setGroqApiKey(key: String) {
+        settings.setGroqApiKey(key)
+        _uiState.update { it.copy(groqApiKey = key.trim()) }
     }
 
-    fun setImageModel(model: String) {
-        settings.setImageModel(model)
-        _uiState.update { it.copy(imageModel = model) }
+    fun setCfAccountId(id: String) {
+        settings.setCfAccountId(id)
+        _uiState.update { it.copy(cfAccountId = id.trim()) }
     }
 
-    fun setTextModel(model: String) {
-        settings.setTextModel(model)
-        _uiState.update { it.copy(textModel = model) }
+    fun setCfApiToken(token: String) {
+        settings.setCfApiToken(token)
+        _uiState.update { it.copy(cfApiToken = token.trim()) }
     }
 
     fun setAutoSave(enabled: Boolean) {
