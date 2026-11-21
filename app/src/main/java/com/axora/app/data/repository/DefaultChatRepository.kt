@@ -102,7 +102,7 @@ class DefaultChatRepository(
         BitmapFactory.decodeFile(source.absolutePath, bounds)
         val (width, height) = ImageSpec.editOutputSize(bounds.outWidth, bounds.outHeight)
 
-        val input = downscaleForEdit(source)
+        val input = downscaleForEdit(source, bounds)
         try {
             val body = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
@@ -130,7 +130,9 @@ class DefaultChatRepository(
             ?: throw IOException(stringsContext.getString(R.string.groq_key_required))
         val messages = buildList {
             add(Message(role = "system", content = TEXT_SYSTEM_PROMPT))
-            history.takeLast(TEXT_CONTEXT_MESSAGES).forEach { message ->
+            // При «Повторить»/регенерации исходный запрос уже в истории — не дублируем его в конце.
+            val context = history.dropLastWhile { it.isUser() && (it.textContent ?: it.text) == prompt }
+            context.takeLast(TEXT_CONTEXT_MESSAGES).forEach { message ->
                 val content = message.textContent ?: message.text
                 if (content.isNotBlank()) {
                     add(Message(role = if (message.isUser()) "user" else "assistant", content = content))
@@ -178,9 +180,7 @@ class DefaultChatRepository(
     }
 
     // Входное изображение для правки должно быть меньше 512×512 — Klein отклоняет крупные.
-    private fun downscaleForEdit(source: File): File {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(source.absolutePath, bounds)
+    private fun downscaleForEdit(source: File, bounds: BitmapFactory.Options): File {
         if (bounds.outWidth <= ImageSpec.EDIT_INPUT_MAX && bounds.outHeight <= ImageSpec.EDIT_INPUT_MAX) {
             return source
         }

@@ -64,18 +64,25 @@ class ChatViewModel(
     fun sendMessage(prompt: String, type: GenerationType = _uiState.value.selectedType) {
         val trimmed = prompt.trim()
         if (trimmed.isEmpty() || type in _uiState.value.generatingTypes) return
-        startGeneration(trimmed, type, before = {
-            repository.insertMessage(
-                ChatMessage(role = Role.USER, text = trimmed, originalPrompt = trimmed, generationType = type)
-            )
-        })
+        val textHistory = textHistorySnapshot()
+        startGeneration(
+            trimmed,
+            type,
+            before = {
+                repository.insertMessage(
+                    ChatMessage(role = Role.USER, text = trimmed, originalPrompt = trimmed, generationType = type)
+                )
+            },
+            produce = { generate(trimmed, type, textHistory) }
+        )
     }
 
     fun regenerate(message: ChatMessage) {
         val prompt = message.originalPrompt ?: return
         val type = message.generationType
         if (type in _uiState.value.generatingTypes) return
-        startGeneration(prompt, type, before = {})
+        val textHistory = textHistorySnapshot()
+        startGeneration(prompt, type, before = {}, produce = { generate(prompt, type, textHistory) })
     }
 
     fun cancelGeneration(type: GenerationType = _uiState.value.selectedType) {
@@ -88,7 +95,7 @@ class ChatViewModel(
         type: GenerationType,
         before: suspend () -> Unit,
         insertErrorMessage: Boolean = true,
-        produce: suspend () -> ChatMessage = { generate(prompt, type) }
+        produce: suspend () -> ChatMessage
     ) {
         _uiState.update {
             it.copy(generatingTypes = it.generatingTypes + type, error = null, errorType = null)
@@ -127,10 +134,18 @@ class ChatViewModel(
         generationJobs[type] = job
     }
 
-    private suspend fun generate(prompt: String, type: GenerationType): ChatMessage {
+    // Снимок истории берётся до вставки сообщения: иначе при смене вкладки
+    // во время генерации контекст текста собирался бы из чужого чата.
+    private fun textHistorySnapshot(): List<ChatMessage> =
+        _uiState.value.messages.filter { !it.isError }
+
+    private suspend fun generate(
+        prompt: String,
+        type: GenerationType,
+        textHistory: List<ChatMessage>
+    ): ChatMessage {
         if (type == GenerationType.TEXT) {
-            val history = _uiState.value.messages.filter { !it.isError }
-            val content = repository.generateText(prompt, history)
+            val content = repository.generateText(prompt, textHistory)
             return ChatMessage(
                 role = Role.ASSISTANT,
                 text = content,
@@ -192,7 +207,13 @@ class ChatViewModel(
         val prompt = message.originalPrompt ?: return
         val type = message.generationType
         if (type in _uiState.value.generatingTypes) return
-        startGeneration(prompt, type, before = { repository.deleteMessage(message.id) })
+        val textHistory = textHistorySnapshot()
+        startGeneration(
+            prompt,
+            type,
+            before = { repository.deleteMessage(message.id) },
+            produce = { generate(prompt, type, textHistory) }
+        )
     }
 
     fun editMessage(messageId: Long, newText: String) {
