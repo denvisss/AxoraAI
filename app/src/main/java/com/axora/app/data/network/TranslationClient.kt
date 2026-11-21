@@ -25,7 +25,10 @@ class TranslationClient(
                     Message(role = "user", content = text)
                 ),
                 temperature = 0.3,
-                max_tokens = 500
+                max_tokens = 1024,
+                // gpt-oss — reasoning-модель: без low-режима лимит токенов уходит на «размышления»
+                // и content приходит пустым.
+                reasoning_effort = "low"
             )
 
             val httpRequest = Request.Builder()
@@ -49,11 +52,12 @@ class TranslationClient(
         val trimmed = raw.trim()
         if (trimmed.isEmpty()) return null
         if (trimmed.startsWith("{")) {
+            // Пустой content (лимит токенов ушёл на reasoning) — не отправляем сырой JSON в промпт.
             val parsed = runCatching {
                 gson.fromJson(trimmed, ChatMessageResponse::class.java)
                     ?.choices?.firstOrNull()?.message?.content?.trim()
             }.getOrNull()
-            if (!parsed.isNullOrEmpty()) return parsed
+            return parsed?.takeIf { it.isNotEmpty() }
         }
         return trimmed
     }

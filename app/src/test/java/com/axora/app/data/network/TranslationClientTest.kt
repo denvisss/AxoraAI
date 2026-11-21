@@ -65,6 +65,19 @@ class TranslationClientTest {
         assertTrue(capturedBody.contains("\"model\":\"openai/gpt-oss-120b\""))
         assertTrue(capturedBody.contains("\"role\":\"system\""))
         assertTrue(capturedBody.contains("\"content\":\"рыжий кот\""))
+        assertTrue(capturedBody.contains("\"reasoning_effort\":\"low\""))
+    }
+
+    @Test
+    fun emptyModelContentFallsBackToOriginalText() = runBlocking {
+        responseBody = """{"choices":[{"message":{"content":""}}]}"""
+        assertEquals("рыжий кот", translator.translateToEnglish("рыжий кот", groqApiKey = "test-placeholder"))
+    }
+
+    @Test
+    fun rawJsonBodyIsNeverUsedAsTranslation() = runBlocking {
+        responseBody = """{"error":{"message":"boom"}}"""
+        assertEquals("рыжий кот", translator.translateToEnglish("рыжий кот", groqApiKey = "test-placeholder"))
     }
 
     @Test
