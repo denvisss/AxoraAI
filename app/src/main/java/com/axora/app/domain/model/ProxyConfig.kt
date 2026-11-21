@@ -21,6 +21,6 @@ data class ProxyConfig(
         const val SCHEME_HTTPS = "https"
         const val SCHEME_SOCKS4 = "socks4"
         const val SCHEME_SOCKS5 = "socks5"
-        val SCHEMES = listOf(SCHEME_HTTP, SCHEME_HTTPS, SCHEME_SOCKS4, SCHEME_SOCKS5)
+        val SCHEMES = listOf(SCHEME_SOCKS5, SCHEME_SOCKS4, SCHEME_HTTP, SCHEME_HTTPS)
     }
 }

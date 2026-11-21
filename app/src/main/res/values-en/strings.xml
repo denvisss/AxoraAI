@@ -139,11 +139,12 @@
     <string name="proxy_port_placeholder">8080</string>
     <string name="proxy_save">Save server</string>
     <string name="proxy_free_title">Free proxies</string>
-    <string name="proxy_free_hint">Shared list of free proxies, refreshed every 5 minutes. Tap a proxy to test and connect</string>
+    <string name="proxy_free_hint">Shared list of free proxies, refreshed automatically every 5 minutes. Servers are pinged and sorted by speed — unreachable ones are hidden</string>
     <string name="proxy_refresh">Refresh list</string>
     <string name="proxy_loading">Loading list…</string>
+    <string name="proxy_auto_testing">Testing servers…</string>
     <string name="proxy_load_fail">Could not load the list. Try again later</string>
-    <string name="proxy_count">Found %1$d · shown %2$d</string>
+    <string name="proxy_count">Found %1$d · working %2$d</string>
     <string name="proxy_more">Show more</string>
     <string name="proxy_latency_ms">%1$d ms</string>
     <string name="dark_theme_title">Dark theme</string>
@@ -194,6 +195,7 @@
     <string name="about_share">Share the app</string>
     <string name="about_share_text">Axora — image and text generation. https://github.com/denvisss/AxoraAI</string>
     <string name="about_feedback">Contact the developer</string>
+    <string name="about_support">Support the author</string>
     <string name="about_disclaimer">An independent open-source project. Chat runs on Groq, images on Cloudflare Workers AI; free keys are issued by those services and stored encrypted on the device.</string>
     <string name="about_license">MIT License © 2026 denvisss. Attribution to the author and the original AxoraAI project is required.</string>
 

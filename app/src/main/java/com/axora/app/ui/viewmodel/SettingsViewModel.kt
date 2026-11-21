@@ -122,8 +122,8 @@ class SettingsViewModel(
     suspend fun loadProxyList(protocol: String): List<ProxyEntry> =
         NetworkModule.proxyListClient.load(protocol)
 
-    suspend fun testProxy(config: ProxyConfig): Result<Long> =
-        runCatching { NetworkModule.testProxy(config) }
+    suspend fun testProxy(config: ProxyConfig, timeoutMs: Long = 10_000L): Result<Long> =
+        runCatching { NetworkModule.testProxy(config, timeoutMs) }
 
     fun checkForUpdate() {
         val status = _uiState.value.update.status

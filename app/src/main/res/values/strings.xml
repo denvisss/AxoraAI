@@ -139,11 +139,12 @@
     <string name="proxy_port_placeholder">8080</string>
     <string name="proxy_save">Сохранить сервер</string>
     <string name="proxy_free_title">Бесплатные прокси</string>
-    <string name="proxy_free_hint">Общий список бесплатных прокси, обновляется каждые 5 минут. Нажмите на прокси, чтобы проверить и подключить</string>
+    <string name="proxy_free_hint">Общий список бесплатных прокси, обновляется автоматически каждые 5 минут. Сервера проверяются пингом и сортируются по скорости — недоступные скрываются</string>
     <string name="proxy_refresh">Обновить список</string>
     <string name="proxy_loading">Загрузка списка…</string>
+    <string name="proxy_auto_testing">Проверяем сервера…</string>
     <string name="proxy_load_fail">Не удалось загрузить список. Обновите его позже</string>
-    <string name="proxy_count">Найдено %1$d · показано %2$d</string>
+    <string name="proxy_count">Найдено %1$d · живых %2$d</string>
     <string name="proxy_more">Показать ещё</string>
     <string name="proxy_latency_ms">%1$d мс</string>
     <string name="dark_theme_title">Тёмная тема</string>
@@ -194,6 +195,7 @@
     <string name="about_share">Поделиться приложением</string>
     <string name="about_share_text">Axora — генерация изображений и текста. https://github.com/denvisss/AxoraAI</string>
     <string name="about_feedback">Написать разработчику</string>
+    <string name="about_support">Поддержать автора</string>
     <string name="about_disclaimer">Независимый open-source проект. Чат работает через Groq, изображения — через Cloudflare Workers AI; бесплатные ключи выпускаются этими сервисами и хранятся на устройстве в зашифрованном виде.</string>
     <string name="about_license">Лицензия MIT © 2026 denvisss. Обязательно указание автора и исходного проекта AxoraAI.</string>
 

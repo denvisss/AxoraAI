@@ -52,8 +52,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
@@ -73,13 +76,55 @@ import com.axora.app.ui.viewmodel.SettingsViewModel
 import com.axora.app.ui.viewmodel.UpdateStatus
 import com.axora.app.ui.viewmodel.UpdateUiState
 import java.io.File
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 private const val FEEDBACK_URL = "https://github.com/denvisss/AxoraAI/discussions/1"
 private const val REPO_URL = "https://github.com/denvisss/AxoraAI"
+private const val BOOSTY_URL = "https://boosty.to/denvisss/donate"
 private const val GROQ_KEYS_URL = "https://console.groq.com/keys"
 private const val CLOUDFLARE_SIGNUP_URL = "https://dash.cloudflare.com/sign-up"
 private const val CLOUDFLARE_TOKENS_URL = "https://dash.cloudflare.com/profile/api-tokens"
+private const val PROXY_AUTO_REFRESH_MS = 5 * 60 * 1000L
+private const val PROXY_AUTO_TEST_TIMEOUT_MS = 6_000L
+private const val PROXY_AUTO_TEST_CONCURRENCY = 6
+
+private val BoostyIcon: ImageVector by lazy {
+    ImageVector.Builder(
+        name = "Boosty",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).apply {
+        path(fill = SolidColor(Color(0xFFF15F2C))) {
+            moveTo(8.25f, 3f)
+            lineTo(11.25f, 3f)
+            lineTo(11.25f, 20f)
+            lineTo(8.25f, 20f)
+            close()
+        }
+        path(fill = SolidColor(Color(0xFFF15F2C)), pathFillType = PathFillType.EvenOdd) {
+            moveTo(19f, 15f)
+            arcTo(5f, 5f, 0f, false, true, 14f, 20f)
+            arcTo(5f, 5f, 0f, false, true, 9f, 15f)
+            arcTo(5f, 5f, 0f, false, true, 14f, 10f)
+            arcTo(5f, 5f, 0f, false, true, 19f, 15f)
+            close()
+            moveTo(16.25f, 15f)
+            arcTo(2.25f, 2.25f, 0f, false, true, 14f, 17.25f)
+            arcTo(2.25f, 2.25f, 0f, false, true, 11.75f, 15f)
+            arcTo(2.25f, 2.25f, 0f, false, true, 14f, 12.75f)
+            arcTo(2.25f, 2.25f, 0f, false, true, 16.25f, 15f)
+            close()
+        }
+    }.build()
+}
+
+private enum class SettingsLevel { Main, Connection, Proxy }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,12 +134,12 @@ fun SettingsScreen(
     onLanguageChange: (String) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
-    var showConnection by rememberSaveable { mutableStateOf(false) }
+    var level by rememberSaveable { mutableStateOf(SettingsLevel.Main) }
     val scheme = MaterialTheme.colorScheme
 
     LaunchedEffect(Unit) { viewModel.refresh() }
 
-    BackHandler(enabled = showConnection) { showConnection = false }
+    BackHandler(enabled = level != SettingsLevel.Main) { level = SettingsLevel.Main }
 
     Scaffold(
         topBar = {
@@ -102,14 +147,22 @@ fun SettingsScreen(
                 title = {
                     Text(
                         text = stringResource(
-                            if (showConnection) R.string.connection_title else R.string.settings_title
+                            when (level) {
+                                SettingsLevel.Connection -> R.string.connection_title
+                                SettingsLevel.Proxy -> R.string.proxy_title
+                                SettingsLevel.Main -> R.string.settings_title
+                            }
                         ),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { if (showConnection) showConnection = false else onBack() }) {
+                    IconButton(
+                        onClick = {
+                            if (level != SettingsLevel.Main) level = SettingsLevel.Main else onBack()
+                        }
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.cd_back)
@@ -126,13 +179,13 @@ fun SettingsScreen(
         containerColor = scheme.background
     ) { paddingValues ->
         AnimatedContent(
-            targetState = showConnection,
+            targetState = level,
             transitionSpec = {
                 (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 6 })
                     .togetherWith(fadeOut(tween(160)) + slideOutHorizontally(tween(160)) { -it / 6 })
             },
             label = "settingsLevel"
-        ) { connection ->
+        ) { currentLevel ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -141,22 +194,23 @@ fun SettingsScreen(
                     .padding(horizontal = 16.dp)
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
-                if (connection) {
-                    ConnectionSettings(
+                when (currentLevel) {
+                    SettingsLevel.Connection -> ConnectionSettings(
                         groqApiKey = state.groqApiKey,
                         onGroqKeySave = viewModel::setGroqApiKey,
                         cfAccountId = state.cfAccountId,
                         onCfAccountIdSave = viewModel::setCfAccountId,
                         cfApiToken = state.cfApiToken,
                         onCfApiTokenSave = viewModel::setCfApiToken,
-                        keyStorageEncrypted = state.keyStorageEncrypted,
+                        keyStorageEncrypted = state.keyStorageEncrypted
+                    )
+                    SettingsLevel.Proxy -> ProxySection(
                         proxy = state.proxy,
                         onSetProxy = viewModel::setProxy,
-                        onLoadProxyList = viewModel::loadProxyList,
-                        onTestProxy = viewModel::testProxy
+                        onLoadList = viewModel::loadProxyList,
+                        onTest = viewModel::testProxy
                     )
-                } else {
-                    MainSettings(
+                    SettingsLevel.Main -> MainSettings(
                         autoSave = state.autoSave,
                         onAutoSaveChange = viewModel::setAutoSave,
                         autoTranslate = state.autoTranslate,
@@ -174,7 +228,8 @@ fun SettingsScreen(
                         allKeysConnected = state.groqApiKey.isNotBlank() &&
                             state.cfAccountId.isNotBlank() &&
                             state.cfApiToken.isNotBlank(),
-                        onOpenConnection = { showConnection = true }
+                        onOpenConnection = { level = SettingsLevel.Connection },
+                        onOpenProxy = { level = SettingsLevel.Proxy }
                     )
                 }
                 Spacer(modifier = Modifier.height(32.dp))
@@ -200,7 +255,8 @@ private fun MainSettings(
     mediaSize: Long,
     onClearMedia: () -> Unit,
     allKeysConnected: Boolean,
-    onOpenConnection: () -> Unit
+    onOpenConnection: () -> Unit,
+    onOpenProxy: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -271,6 +327,40 @@ private fun MainSettings(
                     text = stringResource(
                         if (allKeysConnected) R.string.connection_all_set else R.string.connection_subtitle
                     ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Surface(
+        onClick = onOpenProxy,
+        shape = RoundedCornerShape(24.dp),
+        color = scheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TonalIcon(Icons.Rounded.Lan)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.proxy_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = scheme.onSurface
+                )
+                Text(
+                    text = stringResource(R.string.proxy_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant
                 )
@@ -475,6 +565,16 @@ private fun MainSettings(
             trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
             onClick = {
                 context.startActivity(Intent(Intent.ACTION_VIEW, FEEDBACK_URL.toUri()))
+            }
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        LinkRow(
+            icon = BoostyIcon,
+            iconTint = Color(0xFFF15F2C),
+            title = stringResource(R.string.about_support),
+            trailingIcon = Icons.AutoMirrored.Rounded.OpenInNew,
+            onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, BOOSTY_URL.toUri()))
             }
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -728,6 +828,7 @@ private fun LinkRow(
     title: String,
     trailingIcon: ImageVector,
     onClick: () -> Unit,
+    iconTint: Color = MaterialTheme.colorScheme.primary,
     subtitle: String? = null
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -745,7 +846,7 @@ private fun LinkRow(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = scheme.primary,
+                tint = iconTint,
                 modifier = Modifier.size(20.dp)
             )
             Column(modifier = Modifier.weight(1f)) {
@@ -780,11 +881,7 @@ private fun ConnectionSettings(
     onCfAccountIdSave: (String) -> Unit,
     cfApiToken: String,
     onCfApiTokenSave: (String) -> Unit,
-    keyStorageEncrypted: Boolean,
-    proxy: ProxyConfig?,
-    onSetProxy: (ProxyConfig?) -> Unit,
-    onLoadProxyList: suspend (String) -> List<ProxyEntry>,
-    onTestProxy: suspend (ProxyConfig) -> Result<Long>
+    keyStorageEncrypted: Boolean
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -957,15 +1054,6 @@ private fun ConnectionSettings(
             }
         }
     }
-
-    Spacer(modifier = Modifier.height(12.dp))
-
-    ProxySection(
-        proxy = proxy,
-        onSetProxy = onSetProxy,
-        onLoadList = onLoadProxyList,
-        onTest = onTestProxy
-    )
 }
 
 @Composable
@@ -973,7 +1061,7 @@ private fun ProxySection(
     proxy: ProxyConfig?,
     onSetProxy: (ProxyConfig?) -> Unit,
     onLoadList: suspend (String) -> List<ProxyEntry>,
-    onTest: suspend (ProxyConfig) -> Result<Long>
+    onTest: suspend (ProxyConfig, Long) -> Result<Long>
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -986,9 +1074,9 @@ private fun ProxySection(
     var loading by remember(protocol) { mutableStateOf(true) }
     var loadError by remember(protocol) { mutableStateOf(false) }
     var visibleCount by rememberSaveable(protocol) { mutableIntStateOf(10) }
-    var testingKey by remember { mutableStateOf<String?>(null) }
-    var results by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
-    var failed by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val results = remember(protocol) { mutableStateMapOf<String, Long>() }
+    val failed = remember(protocol) { mutableStateSetOf<String>() }
+    val testingKeys = remember(protocol) { mutableStateSetOf<String>() }
 
     var ownScheme by rememberSaveable { mutableStateOf(ProxyConfig.SCHEMES.first()) }
     var hostDraft by rememberSaveable { mutableStateOf("") }
@@ -1009,6 +1097,70 @@ private fun ProxySection(
             null
         }
         loading = false
+    }
+
+    LaunchedEffect(protocol, refreshKey, entries) {
+        val list = entries ?: return@LaunchedEffect
+        results.clear()
+        failed.clear()
+        testingKeys.clear()
+        val semaphore = Semaphore(PROXY_AUTO_TEST_CONCURRENCY)
+        coroutineScope {
+            list.forEach { entry ->
+                launch {
+                    semaphore.withPermit {
+                        val key = "${entry.ip}:${entry.port}"
+                        testingKeys.add(key)
+                        val config = ProxyConfig(
+                            enabled = true,
+                            scheme = entry.protocol.ifBlank { protocol },
+                            host = entry.ip,
+                            port = entry.port
+                        )
+                        onTest(config, PROXY_AUTO_TEST_TIMEOUT_MS)
+                            .onSuccess { results[key] = it }
+                            .onFailure { failed.add(key) }
+                        testingKeys.remove(key)
+                    }
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(protocol) {
+        while (true) {
+            delay(PROXY_AUTO_REFRESH_MS)
+            refreshKey++
+        }
+    }
+
+    val connect: (ProxyEntry) -> Unit = { entry ->
+        val key = "${entry.ip}:${entry.port}"
+        val config = ProxyConfig(
+            enabled = true,
+            scheme = entry.protocol.ifBlank { protocol },
+            host = entry.ip,
+            port = entry.port
+        )
+        if (key !in testingKeys) {
+            scope.launch {
+                val latency = results[key] ?: run {
+                    testingKeys.add(key)
+                    val attempt = onTest(config, PROXY_AUTO_TEST_TIMEOUT_MS)
+                    testingKeys.remove(key)
+                    attempt.getOrNull()?.also { results[key] = it } ?: run {
+                        failed.add(key)
+                        return@launch
+                    }
+                }
+                onSetProxy(config)
+                Toast.makeText(
+                    context,
+                    resources.getString(R.string.proxy_connected_toast, latency),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
     }
 
     SettingsCard {
@@ -1082,7 +1234,7 @@ private fun ProxySection(
                         scope.launch {
                             testingCurrent = true
                             currentTest = null
-                            currentTest = onTest(proxy)
+                            currentTest = onTest(proxy, 10_000L)
                             testingCurrent = false
                         }
                     },
@@ -1246,8 +1398,21 @@ private fun ProxySection(
         }
         Spacer(modifier = Modifier.height(12.dp))
         val list = entries
+        val okList = list.orEmpty()
+            .filter { results.containsKey("${it.ip}:${it.port}") }
+            .sortedBy { results["${it.ip}:${it.port}"] }
+        val pendingList = list.orEmpty().filter {
+            val key = "${it.ip}:${it.port}"
+            !results.containsKey(key) && key !in failed
+        }
+        val display = okList + pendingList
         when {
-            loading -> Row(
+            loadError -> Text(
+                text = stringResource(R.string.proxy_load_fail),
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.error
+            )
+            list == null && loading -> Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
@@ -1258,51 +1423,40 @@ private fun ProxySection(
                     color = scheme.onSurfaceVariant
                 )
             }
-            loadError -> Text(
-                text = stringResource(R.string.proxy_load_fail),
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.error
-            )
             list == null -> {}
             else -> {
-                val shown = list.take(visibleCount)
                 Text(
-                    text = stringResource(R.string.proxy_count, list.size, shown.size),
+                    text = stringResource(R.string.proxy_count, list.size, okList.size),
                     style = MaterialTheme.typography.labelSmall,
                     color = scheme.onSurfaceVariant
                 )
+                if (testingKeys.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Text(
+                            text = stringResource(R.string.proxy_auto_testing),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
-                shown.forEach { entry ->
+                display.take(visibleCount).forEach { entry ->
                     val key = "${entry.ip}:${entry.port}"
                     ProxyRow(
                         entry = entry,
                         fallbackProtocol = protocol,
-                        testing = testingKey == key,
+                        testing = key in testingKeys,
                         latency = results[key],
-                        failed = key in failed,
-                        onConnect = { config ->
-                            scope.launch {
-                                testingKey = key
-                                val result = onTest(config)
-                                testingKey = null
-                                result.onSuccess { ms ->
-                                    results = results + (key to ms)
-                                    failed = failed - key
-                                    onSetProxy(config)
-                                    Toast.makeText(
-                                        context,
-                                        resources.getString(R.string.proxy_connected_toast, ms),
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }.onFailure {
-                                    failed = failed + key
-                                }
-                            }
-                        }
+                        onConnect = { connect(entry) }
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                 }
-                if (list.size > visibleCount) {
+                if (display.size > visibleCount) {
                     TextButton(onClick = { visibleCount += 20 }) {
                         Text(stringResource(R.string.proxy_more))
                     }
@@ -1318,7 +1472,6 @@ private fun ProxyRow(
     fallbackProtocol: String,
     testing: Boolean,
     latency: Long?,
-    failed: Boolean,
     onConnect: (ProxyConfig) -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -1365,16 +1518,19 @@ private fun ProxyRow(
             }
             when {
                 testing -> CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                latency != null -> Text(
-                    text = stringResource(R.string.proxy_latency_ms, latency),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = scheme.primary
-                )
-                failed -> Text(
-                    text = stringResource(R.string.proxy_fail),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.error
-                )
+                latency != null -> {
+                    val dark = scheme.surface.luminance() < 0.5f
+                    val pingColor = when {
+                        latency < 300 -> if (dark) Color(0xFF8FDCA8) else Color(0xFF146C3A)
+                        latency < 1000 -> if (dark) Color(0xFFF2C979) else Color(0xFF8A5A00)
+                        else -> scheme.error
+                    }
+                    Text(
+                        text = stringResource(R.string.proxy_latency_ms, latency),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = pingColor
+                    )
+                }
             }
         }
     }
