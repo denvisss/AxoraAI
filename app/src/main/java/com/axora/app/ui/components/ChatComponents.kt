@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AudioFile
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DeleteSweep
@@ -83,6 +84,7 @@ fun getGenerationIcon(type: GenerationType) = when (type) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatTopBar(
+    onTemplatesClick: () -> Unit,
     onSearchClick: () -> Unit,
     onExportClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -108,6 +110,13 @@ fun ChatTopBar(
                         tint = scheme.onSurfaceVariant
                     )
                 }
+            }
+            IconButton(onClick = onTemplatesClick) {
+                Icon(
+                    imageVector = Icons.Rounded.BookmarkBorder,
+                    contentDescription = stringResource(R.string.cd_templates),
+                    tint = scheme.onSurfaceVariant
+                )
             }
             IconButton(onClick = onSearchClick) {
                 Icon(

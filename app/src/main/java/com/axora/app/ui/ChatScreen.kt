@@ -29,6 +29,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -278,6 +279,7 @@ fun ChatScreen(
         topBar = {
             Column {
                 ChatTopBar(
+                    onTemplatesClick = { showTemplatesDialog = true },
                     onSearchClick = { showSearchDialog = true },
                     onExportClick = { exportChat(context, uiState.messages) },
                     onSettingsClick = onSettingsClick,
@@ -440,7 +442,6 @@ fun ChatScreen(
                     viewModel.sendMessage(inputText)
                     inputText = ""
                 },
-                onTemplatesClick = { showTemplatesDialog = true },
                 attachImages = uiState.selectedType == GenerationType.IMAGE,
                 onAttachImage = {
                     pickImageLauncher.launch(
@@ -946,7 +947,6 @@ fun BottomInputBar(
     value: String,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
-    onTemplatesClick: () -> Unit,
     attachImages: Boolean,
     onAttachImage: () -> Unit,
     onStartVoice: () -> Unit,
@@ -986,20 +986,43 @@ fun BottomInputBar(
                     )
                 },
                 leadingIcon = {
-                    Box(
-                        modifier = Modifier
-                            .size(30.dp)
-                            .alpha(if (isGenerating) 0.5f else 1f)
-                            .clip(CircleShape)
-                            .background(AxoraGradient),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.AutoAwesome,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(17.dp)
-                        )
+                    // На вкладке изображений — цветная кнопка прикрепления внутри поля,
+                    // на остальных — декоративная искра.
+                    if (attachImages) {
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .size(32.dp)
+                                .alpha(if (isGenerating) 0.5f else 1f)
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(AxoraGradient)
+                                .clickable(enabled = !isGenerating) { onAttachImage() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AddPhotoAlternate,
+                                contentDescription = stringResource(R.string.cd_attach),
+                                tint = Color.White,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .size(32.dp)
+                                .alpha(if (isGenerating) 0.5f else 1f)
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(AxoraGradient),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
                     }
                 },
                 maxLines = 4,
@@ -1032,34 +1055,6 @@ fun BottomInputBar(
                         imageVector = Icons.AutoMirrored.Rounded.Send,
                         contentDescription = stringResource(R.string.cd_send),
                         tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-
-            IconButton(
-                onClick = onTemplatesClick,
-                enabled = !isGenerating,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.BookmarkBorder,
-                    contentDescription = stringResource(R.string.cd_templates),
-                    tint = scheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-
-            if (attachImages) {
-                IconButton(
-                    onClick = onAttachImage,
-                    enabled = !isGenerating,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.AddPhotoAlternate,
-                        contentDescription = stringResource(R.string.cd_attach),
-                        tint = scheme.onSurfaceVariant,
                         modifier = Modifier.size(22.dp)
                     )
                 }

@@ -45,6 +45,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Lan
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Refresh
@@ -342,6 +343,7 @@ private fun MainSettings(
     val context = LocalContext.current
 
     var showClearMediaDialog by remember { mutableStateOf(false) }
+    var themeMenuExpanded by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showTextModelDialog by remember { mutableStateOf(false) }
     var showAddTemplateDialog by remember { mutableStateOf(false) }
@@ -483,54 +485,101 @@ private fun MainSettings(
 
     SectionLabel(stringResource(R.string.section_app))
     SettingsCard {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TonalIcon(Icons.Rounded.WbSunny)
-            Column {
-                Text(
-                    text = stringResource(R.string.theme_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = scheme.onSurface
-                )
-                Text(
-                    text = stringResource(
-                        when (darkTheme) {
-                            null -> R.string.theme_system
-                            false -> R.string.theme_light
-                            true -> R.string.theme_dark
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Surface(
+                onClick = { themeMenuExpanded = true },
+                color = Color.Transparent,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TonalIcon(Icons.Rounded.Palette)
+                        Column {
+                            Text(
+                                text = stringResource(R.string.theme_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = scheme.onSurface
+                            )
+                            Text(
+                                text = stringResource(
+                                    when (darkTheme) {
+                                        null -> R.string.theme_system
+                                        false -> R.string.theme_light
+                                        true -> R.string.theme_dark
+                                    }
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = scheme.onSurfaceVariant
+                            )
                         }
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant
+                    }
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+            DropdownMenu(
+                expanded = themeMenuExpanded,
+                onDismissRequest = { themeMenuExpanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.theme_system)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (darkTheme == null) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                            contentDescription = null,
+                            tint = if (darkTheme == null) scheme.primary else scheme.outlineVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    onClick = {
+                        themeMenuExpanded = false
+                        onThemeChange(null)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.theme_light)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (darkTheme == false) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                            contentDescription = null,
+                            tint = if (darkTheme == false) scheme.primary else scheme.outlineVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    onClick = {
+                        themeMenuExpanded = false
+                        onThemeChange(false)
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.theme_dark)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (darkTheme == true) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                            contentDescription = null,
+                            tint = if (darkTheme == true) scheme.primary else scheme.outlineVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    onClick = {
+                        themeMenuExpanded = false
+                        onThemeChange(true)
+                    }
                 )
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            SegmentedButton(
-                selected = darkTheme == null,
-                onClick = { onThemeChange(null) },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
-            ) {
-                Text(stringResource(R.string.theme_system))
-            }
-            SegmentedButton(
-                selected = darkTheme == false,
-                onClick = { onThemeChange(false) },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
-            ) {
-                Text(stringResource(R.string.theme_light))
-            }
-            SegmentedButton(
-                selected = darkTheme == true,
-                onClick = { onThemeChange(true) },
-                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
-            ) {
-                Text(stringResource(R.string.theme_dark))
-            }
-        }
         Spacer(modifier = Modifier.height(12.dp))
         HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
         Spacer(modifier = Modifier.height(12.dp))
