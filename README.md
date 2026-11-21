@@ -37,7 +37,9 @@ Axora is an Android client for prompt-based media generation: images and text ar
 - **Theming.** Material 3, light and dark themes with the choice persisted.
 - **Interface language.** Russian by default regardless of the system language; switch to English in settings, choice persisted.
 - **Updates from GitHub.** Background release auto-check at most once per 24 hours; the update offer appears only in settings. The "App update" item downloads the APK with progress and SHA-256 verification, then installs it over the current version.
+- **Proxy support.** Settings → "Proxy server": optionally route all app traffic through a proxy. A free public proxy list is built in — it reloads automatically every 5 minutes, every server is ping-checked automatically, latency is shown in green (<300 ms), yellow (<1 s) or red, unreachable servers are hidden and the list is sorted by speed, with SOCKS5 selected by default. You can also connect your own server (SOCKS5/SOCKS4/HTTP/HTTPS).
 - **Feedback.** The "Contact the developer" item in settings opens the project's GitHub Discussions thread: bug reports, suggestions and questions.
+- **Support the author.** The "Support the author" item in About opens the author's Boosty donation page.
 
 ## 🧠 Services & free tiers
 
@@ -50,7 +52,7 @@ Both allowances reset daily (Cloudflare at 00:00 UTC). The app never sends promp
 
 ## 🔑 Setup
 
-The app works with your own free keys — it has no embedded service or proxy:
+The app works with your own free keys and talks to the providers directly (an optional proxy can be enabled in settings — see Features):
 
 1. **Groq** (chat): create a key at [console.groq.com/keys](https://console.groq.com/keys).
 2. **Cloudflare** (images): sign up at [dash.cloudflare.com/sign-up](https://dash.cloudflare.com/sign-up), open **Workers AI → Use REST API**, copy the **Account ID** and create a **Workers AI API token** ([token page](https://dash.cloudflare.com/profile/api-tokens) → *Create Token* → *Workers AI* template).
@@ -119,7 +121,7 @@ app/src/main/java/com/axora/app/
 │   ├── ChatScreen.kt          # chat, input, voice, viewer, offline banner, export
 │   ├── GalleryScreen.kt       # grid of all generated images
 │   ├── components/            # ChatComponents (tabs, bubbles, players), ImageViewer (zoom/pager)
-│   ├── settings/SettingsScreen.kt    # settings and the "Connect services" submenu
+│   ├── settings/SettingsScreen.kt    # settings and the "Connect services" and "Proxy" submenus
 │   ├── theme/                 # Color.kt, Theme.kt (light/dark)
 │   └── viewmodel/             # ChatViewModel, SettingsViewModel, factories, StringResolver
 └── util/                      # SaveImageUtil (MediaStore/FileProvider), VoiceInputHelper, ImageSpec
@@ -164,7 +166,7 @@ Coverage: domain models, `ImageSpec` (sizes/formats), network services (`Cloudfl
 1. Settings → **Connect services** → the Groq card: tap **Get a free key**, create the key, paste it.
 2. The Cloudflare card: tap **Create account** / **Create token**, copy the **Account ID** (Workers AI → Use REST API) and the token, paste both.
 3. Done — chat and image generation start working. Each card shows a connected/setup-required status.
-4. Main settings: theme, app language (Russian by default), auto-save to gallery, automatic prompt translation, storage cleanup, app update (auto-check every 24 hours), "Share the app", "Contact the developer", "About".
+4. Main settings: theme, app language (Russian by default), auto-save to gallery, automatic prompt translation, storage cleanup, proxy server (free list or your own), app update (auto-check every 24 hours), "Share the app", "Contact the developer", "Support the author" (Boosty), "About".
 
 ## 📄 License & attribution
 
