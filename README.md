@@ -24,7 +24,10 @@ Axora is an Android client for prompt-based media generation: images and text ar
 
 - **Separate chats per generation type.** Tabs for Image, Text, Video and Audio, each with its own history stream. Video and Audio are marked "Soon" and unavailable until release.
 - **Image generation.** FLUX.2 Klein 4B on Cloudflare Workers AI (free tier), resolutions up to 1536×864. Aspect ratios 1:1, 3:4, 4:3 and 16:9. Instruction-based editing of an existing image (image-to-image) — the source is downscaled on-device and passed as a reference.
-- **Text generation.** `openai/gpt-oss-120b` on Groq (free tier) with the context of the tab's recent messages.
+- **Text generation.** Groq free tier with the context of the tab's recent messages. Answers stream in real time and render Markdown (headings, lists, code, quotes). The model is selectable in settings: GPT-OSS 120B (smartest), GPT-OSS 20B (fastest) or Llama 3.3 70B.
+- **Image editing with a reference.** Attach your own photo to the chat (paperclip button or "Share → Axora" from any gallery app) and describe what to change — FLUX.2 Klein re-draws it. Quick presets ("Similar", "Style") and an edit action right in the image viewer cover "make something similar" too.
+- **Prompt templates.** Create your own reusable templates with `[placeholders]`, fill them in with a dialog and send.
+- **History search.** Full-text search (FTS) across all tabs — find any message by a couple of words.
 - **Starter prompt ideas.** The empty screen shows ready-made example prompts for the active tab, tinted in its accent color; one tap fills the input.
 - **Voice input.** Russian, hold-to-talk semantics — hold to speak, release to send (`SpeechRecognizer`); with TalkBack the microphone acts as a toggle.
 - **Automatic prompt translation.** Cyrillic prompts are translated to English via Groq before media generation (can be disabled).
@@ -34,9 +37,11 @@ Axora is an Android client for prompt-based media generation: images and text ar
 - **Chat export.** Share the current tab's conversation as plain text via any app — media messages are included as short markers, errors are excluded.
 - **Generation control.** Cancel the current generation via a button in the progress indicator; partial files are removed. Offline indicator.
 - **History management.** Per-tab Room storage: edit and delete messages, retry on error, clear a chat, wipe all generated files while keeping the history.
-- **Theming.** Material 3, light and dark themes with the choice persisted.
+- **Theming.** Material 3, light / dark / follow-the-system themes with the choice persisted.
 - **Interface language.** Russian by default regardless of the system language; switch to English in settings, choice persisted.
-- **Updates from GitHub.** Background release auto-check at most once per 24 hours; the update offer appears only in settings. The "App update" item downloads the APK with progress and SHA-256 verification, then installs it over the current version.
+- **Updates from GitHub.** Background release auto-check at most once per 24 hours; the update offer appears only in settings. The "App update" item downloads the APK with progress and SHA-256 verification, then installs it over the current version. After each update a "What's new" dialog shows the release notes.
+- **Usage statistics.** Images and chat messages generated today / in the last 7 days / in total.
+- **Backup.** Export history, templates and settings (API keys and media files excluded) into a JSON file; import it back on another device.
 - **Proxy support.** Settings → "Proxy server": optionally route all app traffic through a proxy. A free public proxy list is built in — it reloads automatically every 5 minutes, every server is ping-checked automatically, latency is shown in green (<300 ms), yellow (<1 s) or red, unreachable servers are hidden and the list is sorted by speed, with SOCKS5 selected by default. You can also connect your own server (SOCKS5/SOCKS4/HTTP/HTTPS).
 - **Feedback.** The "Contact the developer" item in settings opens the project's GitHub Discussions thread: bug reports, suggestions and questions.
 - **Support the author.** The "Support the author" item in About opens the author's Boosty donation page.
@@ -69,7 +74,7 @@ Grab the latest APK from [Releases](https://github.com/denvisss/AxoraAI/releases
 1. `MainActivity` sets up `ChatViewModel` and opens `ChatScreen` (Image tab by default).
 2. Prompt input (text or voice) → `ChatViewModel.sendMessage()` persists the user message and starts generation.
 3. For images: optional ru→en translation → `ChatRepository.generateContent()` sends a multipart request to the Cloudflare Workers AI REST endpoint (`@cf/black-forest-labs/flux-2-klein-4b`) and decodes the base64 result → the file is saved to `files/generated/` → the assistant message lands in Room → with auto-save enabled it is copied to the gallery.
-4. For text: `ChatRepository.generateText()` calls Groq's OpenAI-compatible chat-completions endpoint.
+4. For text: `ChatRepository.generateTextStreamed()` calls Groq's OpenAI-compatible chat-completions endpoint with `stream: true` and renders the answer token by token.
 5. Editing: `ChatRepository.editImage()` downscales the source below 512×512, sends it as `input_image_0` with the instruction as the prompt, and returns the edited image.
 6. Each tab's history is read as a `Flow` from Room; the UI updates reactively.
 
@@ -111,20 +116,20 @@ app/src/main/java/com/axora/app/
 │   ├── local/
 │   │   ├── AppDatabase.kt     # Room database + migrations
 │   │   ├── dao/ChatDao.kt     # history queries and media cleanup
-│   │   └── entity/ChatMessageEntity.kt
+│   │   └── entity/ChatMessageEntity.kt, ChatMessagesFts.kt
 │   ├── network/               # CloudflareApiService (Klein multipart), TextApiService (Groq), TranslationClient
-│   └── repository/            # ChatRepository (interface), DefaultChatRepository, SettingsRepository, MediaStorage, UpdateManager
+│   └── repository/            # ChatRepository (interface), DefaultChatRepository, SettingsRepository, MediaStorage, TemplateStore, UpdateManager
 ├── di/NetworkModule.kt        # OkHttp/Retrofit, Authorization redaction
 ├── domain/model/              # ChatMessage, ChatUiState, GenerationType, ImageFormat
 ├── ui/
 │   ├── MainActivity.kt        # theme, chat/settings/gallery navigation
 │   ├── ChatScreen.kt          # chat, input, voice, viewer, offline banner, export
 │   ├── GalleryScreen.kt       # grid of all generated images
-│   ├── components/            # ChatComponents (tabs, bubbles, players), ImageViewer (zoom/pager)
+│   ├── components/            # ChatComponents (tabs, bubbles, players), ImageViewer (zoom/pager), MarkdownText
 │   ├── settings/SettingsScreen.kt    # settings and the "Connect services" and "Proxy" submenus
 │   ├── theme/                 # Color.kt, Theme.kt (light/dark)
-│   └── viewmodel/             # ChatViewModel, SettingsViewModel, factories, StringResolver
-└── util/                      # SaveImageUtil (MediaStore/FileProvider), VoiceInputHelper, ImageSpec
+│   └── viewmodel/             # ChatViewModel, SettingsViewModel, TemplateViewModel, factories, StringResolver
+└── util/                      # SaveImageUtil (MediaStore/FileProvider), VoiceInputHelper, ImageSpec, MarkdownParser, ImageImport
 ```
 
 ## 🧰 Requirements & build
@@ -166,7 +171,7 @@ Coverage: domain models, `ImageSpec` (sizes/formats), network services (`Cloudfl
 1. Settings → **Connect services** → the Groq card: tap **Get a free key**, create the key, paste it.
 2. The Cloudflare card: tap **Create account** / **Create token**, copy the **Account ID** (Workers AI → Use REST API) and the token, paste both.
 3. Done — chat and image generation start working. Each card shows a connected/setup-required status.
-4. Main settings: theme, app language (Russian by default), auto-save to gallery, automatic prompt translation, storage cleanup, proxy server (free list or your own), app update (auto-check every 24 hours), "Share the app", "Contact the developer", "Support the author" (Boosty), "About".
+4. Main settings: theme (light / dark / system), app language (Russian by default), text model, auto-save to gallery, automatic prompt translation, prompt templates, usage statistics, storage cleanup, proxy server (free list or your own), backup export / import, app update (auto-check every 24 hours), "Share the app", "Contact the developer", "Support the author" (Boosty), "About".
 
 ## 📄 License & attribution
 
