@@ -146,6 +146,8 @@
     <string name="proxy_load_fail">Could not load the list. Try again later</string>
     <string name="proxy_count">Found %1$d · working %2$d</string>
     <string name="proxy_more">Show more</string>
+    <string name="proxy_own_hint">Any server as host + port: HTTP, HTTPS, SOCKS4 or SOCKS5</string>
+    <string name="proxy_none_alive">No working servers in the list right now. Try another protocol or refresh the list later</string>
     <string name="proxy_latency_ms">%1$d ms</string>
     <string name="theme_title">Theme</string>
     <string name="theme_system">Follow system</string>

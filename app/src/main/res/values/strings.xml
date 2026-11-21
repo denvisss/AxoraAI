@@ -146,6 +146,8 @@
     <string name="proxy_load_fail">Не удалось загрузить список. Обновите его позже</string>
     <string name="proxy_count">Найдено %1$d · живых %2$d</string>
     <string name="proxy_more">Показать ещё</string>
+    <string name="proxy_own_hint">Любой сервер в формате хост + порт: HTTP, HTTPS, SOCKS4 или SOCKS5</string>
+    <string name="proxy_none_alive">Сейчас в списке нет рабочих серверов. Попробуйте другой протокол или обновите список позже</string>
     <string name="proxy_latency_ms">%1$d мс</string>
     <string name="theme_title">Тема</string>
     <string name="theme_system">Как в системе</string>

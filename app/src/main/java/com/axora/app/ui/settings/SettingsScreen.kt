@@ -33,7 +33,10 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.Computer
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Image
@@ -48,6 +51,8 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SaveAlt
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SmartToy
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.SystemUpdateAlt
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Translate
@@ -1233,6 +1238,37 @@ private fun StatsRow(icon: ImageVector, title: String, today: Int, week: Int, to
     }
 }
 
+// Строка результата проверки — выровнена по тексту после TonalIcon (40dp + 12dp отступа).
+@Composable
+private fun TestStatusLine(
+    color: Color,
+    icon: ImageVector?,
+    text: String,
+    loading: Boolean = false
+) {
+    Row(
+        modifier = Modifier.padding(start = 52.dp, top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (loading) {
+            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+        } else if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = color,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = color
+        )
+    }
+}
+
 @Composable
 private fun SwitchRow(
     icon: ImageVector,
@@ -1619,31 +1655,8 @@ private fun ProxySection(
             connected = proxy?.enabled == true
         )
         Spacer(modifier = Modifier.height(12.dp))
-        Surface(
-            color = scheme.tertiaryContainer,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.padding(14.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.WarningAmber,
-                    contentDescription = null,
-                    tint = scheme.onTertiaryContainer,
-                    modifier = Modifier.size(20.dp)
-                )
-                Text(
-                    text = stringResource(R.string.proxy_warning),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onTertiaryContainer
-                )
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
         SwitchRow(
-            icon = Icons.Rounded.Lan,
+            icon = Icons.Rounded.SwapHoriz,
             title = stringResource(R.string.proxy_enable),
             subtitle = stringResource(R.string.proxy_enable_subtitle),
             checked = proxy?.enabled == true,
@@ -1651,6 +1664,7 @@ private fun ProxySection(
                 proxy?.let { onSetProxy(it.copy(enabled = enabled)) }
             }
         )
+
         if (proxy != null) {
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
@@ -1659,25 +1673,55 @@ private fun ProxySection(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TonalIcon(Icons.Rounded.Public)
+                TonalIcon(Icons.Rounded.Computer)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = proxy.label,
                         style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
                         color = scheme.onSurface
                     )
-                    Text(
-                        text = stringResource(
-                            if (proxy.enabled) R.string.proxy_enable_subtitle else R.string.proxy_disabled_hint
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant
-                    )
+                    // При включённом прокси статус и так показывает чип в шапке — не дублируем.
+                    if (!proxy.enabled) {
+                        Text(
+                            text = stringResource(R.string.proxy_disabled_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
+            val testResult = currentTest
+            when {
+                testingCurrent -> TestStatusLine(
+                    color = scheme.onSurfaceVariant,
+                    icon = null,
+                    text = stringResource(R.string.proxy_testing),
+                    loading = true
+                )
+                testResult != null -> testResult.fold(
+                    onSuccess = { ms ->
+                        TestStatusLine(
+                            color = scheme.primary,
+                            icon = Icons.Rounded.CheckCircle,
+                            text = stringResource(R.string.proxy_ok, ms)
+                        )
+                    },
+                    onFailure = {
+                        TestStatusLine(
+                            color = scheme.error,
+                            icon = Icons.Rounded.WarningAmber,
+                            text = stringResource(R.string.proxy_fail)
+                        )
+                    }
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
                     onClick = {
                         scope.launch {
                             testingCurrent = true
@@ -1686,53 +1730,69 @@ private fun ProxySection(
                             testingCurrent = false
                         }
                     },
-                    enabled = !testingCurrent
+                    enabled = !testingCurrent,
+                    modifier = Modifier.weight(1f)
                 ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Speed,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(stringResource(R.string.proxy_test))
                 }
-                TextButton(onClick = {
-                    currentTest = null
-                    onSetProxy(null)
-                }) {
-                    Text(
-                        text = stringResource(R.string.proxy_remove),
-                        color = scheme.error
-                    )
-                }
-            }
-            val testResult = currentTest
-            when {
-                testingCurrent -> Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Text(
-                        text = stringResource(R.string.proxy_testing),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant
-                    )
-                }
-                testResult != null -> testResult.fold(
-                    onSuccess = { ms ->
-                        Text(
-                            text = stringResource(R.string.proxy_ok, ms),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = scheme.primary
-                        )
+                OutlinedButton(
+                    onClick = {
+                        currentTest = null
+                        onSetProxy(null)
                     },
-                    onFailure = {
-                        Text(
-                            text = stringResource(R.string.proxy_fail),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = scheme.error
-                        )
-                    }
-                )
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = scheme.error),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(stringResource(R.string.proxy_remove))
+                }
             }
         } else {
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Info,
+                    contentDescription = null,
+                    tint = scheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = stringResource(R.string.proxy_none_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.WarningAmber,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
             Text(
-                text = stringResource(R.string.proxy_none_hint),
+                text = stringResource(R.string.proxy_warning),
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant
             )
@@ -1742,12 +1802,25 @@ private fun ProxySection(
     Spacer(modifier = Modifier.height(12.dp))
 
     SettingsCard {
-        Text(
-            text = stringResource(R.string.proxy_own_title),
-            style = MaterialTheme.typography.titleMedium,
-            color = scheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TonalIcon(Icons.Rounded.Dns)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.proxy_own_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = scheme.onSurface
+                )
+                Text(
+                    text = stringResource(R.string.proxy_own_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
         Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1855,11 +1928,22 @@ private fun ProxySection(
         }
         val display = okList + pendingList
         when {
-            loadError -> Text(
-                text = stringResource(R.string.proxy_load_fail),
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.error
-            )
+            loadError -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.WarningAmber,
+                    contentDescription = null,
+                    tint = scheme.error,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = stringResource(R.string.proxy_load_fail),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.error
+                )
+            }
             list == null && loading -> Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1873,20 +1957,44 @@ private fun ProxySection(
             }
             list == null -> {}
             else -> {
-                Text(
-                    text = stringResource(R.string.proxy_count, list.size, okList.size),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = scheme.onSurfaceVariant
-                )
-                if (testingKeys.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.proxy_count, list.size, okList.size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = scheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (testingKeys.isNotEmpty()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp)
+                            Text(
+                                text = stringResource(R.string.proxy_auto_testing),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = scheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+                if (okList.isEmpty() && pendingList.isEmpty() && testingKeys.isEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalAlignment = Alignment.Top,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                        Icon(
+                            imageVector = Icons.Rounded.CloudOff,
+                            contentDescription = null,
+                            tint = scheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
                         Text(
-                            text = stringResource(R.string.proxy_auto_testing),
+                            text = stringResource(R.string.proxy_none_alive),
                             style = MaterialTheme.typography.bodySmall,
                             color = scheme.onSurfaceVariant
                         )
@@ -1905,8 +2013,14 @@ private fun ProxySection(
                     Spacer(modifier = Modifier.height(6.dp))
                 }
                 if (display.size > visibleCount) {
-                    TextButton(onClick = { visibleCount += 20 }) {
-                        Text(stringResource(R.string.proxy_more))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        TextButton(onClick = { visibleCount += 20 }) {
+                            Text(stringResource(R.string.proxy_more))
+                        }
                     }
                 }
             }
