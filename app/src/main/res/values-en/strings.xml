@@ -116,6 +116,36 @@
     <string name="get_cf_token">Create token</string>
     <string name="cf_limits">Free: about 90 images per day</string>
     <string name="cf_key_required">Connect a free Cloudflare key in settings to generate images</string>
+
+    <!-- Settings: proxy -->
+    <string name="proxy_title">Proxy server</string>
+    <string name="proxy_subtitle">Free proxies or your own server</string>
+    <string name="proxy_warning">These are free public proxies: speed and availability are not guaranteed, and servers may go offline at any time. Traffic goes over HTTPS and stays encrypted, but requests pass through a third-party server. For regular use, your own proxy is a better choice.</string>
+    <string name="proxy_enable">Use proxy</string>
+    <string name="proxy_enable_subtitle">All app requests go through the selected server</string>
+    <string name="proxy_disabled_hint">Off — requests go directly</string>
+    <string name="proxy_none_hint">No proxy selected — pick one from the free list below or enter your own server</string>
+    <string name="proxy_test">Test</string>
+    <string name="proxy_testing">Testing…</string>
+    <string name="proxy_ok">Works · %1$d ms</string>
+    <string name="proxy_fail">Could not connect</string>
+    <string name="proxy_remove">Remove</string>
+    <string name="proxy_saved">Proxy saved</string>
+    <string name="proxy_connected_toast">Proxy connected · %1$d ms</string>
+    <string name="proxy_own_title">Your own server</string>
+    <string name="proxy_host_label">Host or IP</string>
+    <string name="proxy_host_placeholder">e.g. 127.0.0.1</string>
+    <string name="proxy_port_label">Port</string>
+    <string name="proxy_port_placeholder">8080</string>
+    <string name="proxy_save">Save server</string>
+    <string name="proxy_free_title">Free proxies</string>
+    <string name="proxy_free_hint">Shared list of free proxies, refreshed every 5 minutes. Tap a proxy to test and connect</string>
+    <string name="proxy_refresh">Refresh list</string>
+    <string name="proxy_loading">Loading list…</string>
+    <string name="proxy_load_fail">Could not load the list. Try again later</string>
+    <string name="proxy_count">Found %1$d · shown %2$d</string>
+    <string name="proxy_more">Show more</string>
+    <string name="proxy_latency_ms">%1$d ms</string>
     <string name="dark_theme_title">Dark theme</string>
     <string name="dark_theme_subtitle">Toggle appearance</string>
     <string name="language_title">App language</string>

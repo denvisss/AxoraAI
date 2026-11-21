@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.axora.app.BuildConfig
 import com.axora.app.data.network.GitHubRelease
+import com.axora.app.data.network.ProxyEntry
 import com.axora.app.data.repository.MediaStorage
 import com.axora.app.data.repository.SettingsRepository
 import com.axora.app.data.repository.UpdateManager
+import com.axora.app.di.NetworkModule
+import com.axora.app.domain.model.ProxyConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +27,7 @@ data class SettingsUiState(
     val mediaSize: Long = 0L,
     val keyStorageEncrypted: Boolean = true,
     val availableUpdateTag: String = "",
+    val proxy: ProxyConfig? = null,
     val update: UpdateUiState = UpdateUiState()
 )
 
@@ -64,7 +68,8 @@ class SettingsViewModel(
                 keyStorageEncrypted = settings.isKeyStorageEncrypted,
                 availableUpdateTag = settings.getAvailableUpdateTag()
                     ?.takeIf { UpdateManager.isNewerVersion(it, BuildConfig.VERSION_NAME) }
-                    .orEmpty()
+                    .orEmpty(),
+                proxy = settings.getProxy()
             )
         }
         viewModelScope.launch {
@@ -107,6 +112,18 @@ class SettingsViewModel(
         settings.setAppLanguage(language)
         _uiState.update { it.copy(language = language) }
     }
+
+    fun setProxy(config: ProxyConfig?) {
+        settings.setProxy(config)
+        NetworkModule.proxyConfig.value = config
+        _uiState.update { it.copy(proxy = config) }
+    }
+
+    suspend fun loadProxyList(protocol: String): List<ProxyEntry> =
+        NetworkModule.proxyListClient.load(protocol)
+
+    suspend fun testProxy(config: ProxyConfig): Result<Long> =
+        runCatching { NetworkModule.testProxy(config) }
 
     fun checkForUpdate() {
         val status = _uiState.value.update.status

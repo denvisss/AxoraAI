@@ -13,6 +13,11 @@ import com.axora.app.di.NetworkModule
 
 class AxoraApplication : Application() {
 
+    override fun onCreate() {
+        super.onCreate()
+        NetworkModule.proxyConfig.value = settingsRepository.getProxy()
+    }
+
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(SettingsRepository.wrapLocale(base))
     }

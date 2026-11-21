@@ -116,6 +116,36 @@
     <string name="get_cf_token">Создать токен</string>
     <string name="cf_limits">Бесплатно: около 90 изображений в день</string>
     <string name="cf_key_required">Для генерации изображений подключите бесплатный ключ Cloudflare в настройках</string>
+
+    <!-- Settings: proxy -->
+    <string name="proxy_title">Прокси-сервер</string>
+    <string name="proxy_subtitle">Бесплатные прокси или свой сервер</string>
+    <string name="proxy_warning">Это бесплатные публичные прокси: скорость и доступность не гарантируются, серверы могут отключаться в любой момент. Трафик идёт по HTTPS и остаётся зашифрованным, но запросы проходят через сторонний сервер. Для постоянного использования лучше подключить свой прокси.</string>
+    <string name="proxy_enable">Использовать прокси</string>
+    <string name="proxy_enable_subtitle">Все запросы приложения идут через выбранный сервер</string>
+    <string name="proxy_disabled_hint">Выключен — запросы идут напрямую</string>
+    <string name="proxy_none_hint">Прокси не выбран — подключите из бесплатного списка ниже или введите свой сервер</string>
+    <string name="proxy_test">Проверить</string>
+    <string name="proxy_testing">Проверка…</string>
+    <string name="proxy_ok">Работает · %1$d мс</string>
+    <string name="proxy_fail">Не удалось подключиться</string>
+    <string name="proxy_remove">Убрать</string>
+    <string name="proxy_saved">Прокси сохранён</string>
+    <string name="proxy_connected_toast">Прокси подключён · %1$d мс</string>
+    <string name="proxy_own_title">Свой сервер</string>
+    <string name="proxy_host_label">Хост или IP</string>
+    <string name="proxy_host_placeholder">например, 127.0.0.1</string>
+    <string name="proxy_port_label">Порт</string>
+    <string name="proxy_port_placeholder">8080</string>
+    <string name="proxy_save">Сохранить сервер</string>
+    <string name="proxy_free_title">Бесплатные прокси</string>
+    <string name="proxy_free_hint">Общий список бесплатных прокси, обновляется каждые 5 минут. Нажмите на прокси, чтобы проверить и подключить</string>
+    <string name="proxy_refresh">Обновить список</string>
+    <string name="proxy_loading">Загрузка списка…</string>
+    <string name="proxy_load_fail">Не удалось загрузить список. Обновите его позже</string>
+    <string name="proxy_count">Найдено %1$d · показано %2$d</string>
+    <string name="proxy_more">Показать ещё</string>
+    <string name="proxy_latency_ms">%1$d мс</string>
     <string name="dark_theme_title">Тёмная тема</string>
     <string name="dark_theme_subtitle">Переключить оформление</string>
     <string name="language_title">Язык приложения</string>

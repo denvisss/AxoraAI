@@ -16,6 +16,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,9 +33,11 @@ import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
+import androidx.compose.material.icons.rounded.Lan
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.SaveAlt
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SmartToy
@@ -52,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -61,12 +65,15 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.axora.app.BuildConfig
 import com.axora.app.R
+import com.axora.app.data.network.ProxyEntry
 import com.axora.app.data.repository.SettingsRepository
+import com.axora.app.domain.model.ProxyConfig
 import com.axora.app.ui.theme.AxoraGradient
 import com.axora.app.ui.viewmodel.SettingsViewModel
 import com.axora.app.ui.viewmodel.UpdateStatus
 import com.axora.app.ui.viewmodel.UpdateUiState
 import java.io.File
+import kotlinx.coroutines.launch
 
 private const val FEEDBACK_URL = "https://github.com/denvisss/AxoraAI/discussions/1"
 private const val REPO_URL = "https://github.com/denvisss/AxoraAI"
@@ -142,7 +149,11 @@ fun SettingsScreen(
                         onCfAccountIdSave = viewModel::setCfAccountId,
                         cfApiToken = state.cfApiToken,
                         onCfApiTokenSave = viewModel::setCfApiToken,
-                        keyStorageEncrypted = state.keyStorageEncrypted
+                        keyStorageEncrypted = state.keyStorageEncrypted,
+                        proxy = state.proxy,
+                        onSetProxy = viewModel::setProxy,
+                        onLoadProxyList = viewModel::loadProxyList,
+                        onTestProxy = viewModel::testProxy
                     )
                 } else {
                     MainSettings(
@@ -236,6 +247,43 @@ private fun MainSettings(
     }
 
     Spacer(modifier = Modifier.height(16.dp))
+
+    SectionLabel(stringResource(R.string.section_connection))
+    Surface(
+        onClick = onOpenConnection,
+        shape = RoundedCornerShape(24.dp),
+        color = scheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TonalIcon(Icons.Rounded.Key)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.connection_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = scheme.onSurface
+                )
+                Text(
+                    text = stringResource(
+                        if (allKeysConnected) R.string.connection_all_set else R.string.connection_subtitle
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(20.dp))
 
     SectionLabel(stringResource(R.string.section_app))
     SettingsCard {
@@ -357,43 +405,6 @@ private fun MainSettings(
                     color = if (mediaSize > 0) scheme.error else scheme.onSurfaceVariant
                 )
             }
-        }
-    }
-
-    Spacer(modifier = Modifier.height(20.dp))
-
-    SectionLabel(stringResource(R.string.section_connection))
-    Surface(
-        onClick = onOpenConnection,
-        shape = RoundedCornerShape(24.dp),
-        color = scheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            TonalIcon(Icons.Rounded.Key)
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = stringResource(R.string.connection_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = scheme.onSurface
-                )
-                Text(
-                    text = stringResource(
-                        if (allKeysConnected) R.string.connection_all_set else R.string.connection_subtitle
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant
-                )
-            }
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                tint = scheme.onSurfaceVariant
-            )
         }
     }
 
@@ -769,7 +780,11 @@ private fun ConnectionSettings(
     onCfAccountIdSave: (String) -> Unit,
     cfApiToken: String,
     onCfApiTokenSave: (String) -> Unit,
-    keyStorageEncrypted: Boolean
+    keyStorageEncrypted: Boolean,
+    proxy: ProxyConfig?,
+    onSetProxy: (ProxyConfig?) -> Unit,
+    onLoadProxyList: suspend (String) -> List<ProxyEntry>,
+    onTestProxy: suspend (ProxyConfig) -> Result<Long>
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -942,6 +957,427 @@ private fun ConnectionSettings(
             }
         }
     }
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    ProxySection(
+        proxy = proxy,
+        onSetProxy = onSetProxy,
+        onLoadList = onLoadProxyList,
+        onTest = onTestProxy
+    )
+}
+
+@Composable
+private fun ProxySection(
+    proxy: ProxyConfig?,
+    onSetProxy: (ProxyConfig?) -> Unit,
+    onLoadList: suspend (String) -> List<ProxyEntry>,
+    onTest: suspend (ProxyConfig) -> Result<Long>
+) {
+    val scheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
+
+    var protocol by rememberSaveable { mutableStateOf(ProxyConfig.SCHEMES.first()) }
+    var refreshKey by rememberSaveable { mutableIntStateOf(0) }
+    var entries by remember(protocol) { mutableStateOf<List<ProxyEntry>?>(null) }
+    var loading by remember(protocol) { mutableStateOf(true) }
+    var loadError by remember(protocol) { mutableStateOf(false) }
+    var visibleCount by rememberSaveable(protocol) { mutableIntStateOf(10) }
+    var testingKey by remember { mutableStateOf<String?>(null) }
+    var results by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+    var failed by remember { mutableStateOf<Set<String>>(emptySet()) }
+
+    var ownScheme by rememberSaveable { mutableStateOf(ProxyConfig.SCHEMES.first()) }
+    var hostDraft by rememberSaveable { mutableStateOf("") }
+    var portDraft by rememberSaveable { mutableStateOf("") }
+    val portValue = portDraft.trim().toIntOrNull()
+    val ownValid = hostDraft.isNotBlank() && portValue != null && portValue in 1..65535
+
+    var testingCurrent by remember { mutableStateOf(false) }
+    var currentTest by remember { mutableStateOf<Result<Long>?>(null) }
+
+    LaunchedEffect(protocol, refreshKey) {
+        loading = true
+        loadError = false
+        entries = try {
+            onLoadList(protocol)
+        } catch (_: Exception) {
+            loadError = true
+            null
+        }
+        loading = false
+    }
+
+    SettingsCard {
+        ProviderHeader(
+            icon = Icons.Rounded.Lan,
+            title = stringResource(R.string.proxy_title),
+            subtitle = stringResource(R.string.proxy_subtitle),
+            connected = proxy?.enabled == true
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Surface(
+            color = scheme.tertiaryContainer,
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.WarningAmber,
+                    contentDescription = null,
+                    tint = scheme.onTertiaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = stringResource(R.string.proxy_warning),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onTertiaryContainer
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        SwitchRow(
+            icon = Icons.Rounded.Lan,
+            title = stringResource(R.string.proxy_enable),
+            subtitle = stringResource(R.string.proxy_enable_subtitle),
+            checked = proxy?.enabled == true,
+            onCheckedChange = { enabled ->
+                proxy?.let { onSetProxy(it.copy(enabled = enabled)) }
+            }
+        )
+        if (proxy != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TonalIcon(Icons.Rounded.Public)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = proxy.label,
+                        style = MaterialTheme.typography.titleSmall,
+                        color = scheme.onSurface
+                    )
+                    Text(
+                        text = stringResource(
+                            if (proxy.enabled) R.string.proxy_enable_subtitle else R.string.proxy_disabled_hint
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            testingCurrent = true
+                            currentTest = null
+                            currentTest = onTest(proxy)
+                            testingCurrent = false
+                        }
+                    },
+                    enabled = !testingCurrent
+                ) {
+                    Text(stringResource(R.string.proxy_test))
+                }
+                TextButton(onClick = {
+                    currentTest = null
+                    onSetProxy(null)
+                }) {
+                    Text(
+                        text = stringResource(R.string.proxy_remove),
+                        color = scheme.error
+                    )
+                }
+            }
+            val testResult = currentTest
+            when {
+                testingCurrent -> Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text(
+                        text = stringResource(R.string.proxy_testing),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant
+                    )
+                }
+                testResult != null -> testResult.fold(
+                    onSuccess = { ms ->
+                        Text(
+                            text = stringResource(R.string.proxy_ok, ms),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.primary
+                        )
+                    },
+                    onFailure = {
+                        Text(
+                            text = stringResource(R.string.proxy_fail),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.error
+                        )
+                    }
+                )
+            }
+        } else {
+            Text(
+                text = stringResource(R.string.proxy_none_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    SettingsCard {
+        Text(
+            text = stringResource(R.string.proxy_own_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = scheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ProxyConfig.SCHEMES.forEach { candidate ->
+                FilterChip(
+                    selected = ownScheme == candidate,
+                    onClick = { ownScheme = candidate },
+                    label = { Text(candidate.uppercase()) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SettingsField(
+                label = stringResource(R.string.proxy_host_label),
+                value = hostDraft,
+                placeholder = stringResource(R.string.proxy_host_placeholder),
+                hideText = false,
+                onValueChange = { hostDraft = it },
+                modifier = Modifier.weight(1f)
+            )
+            SettingsField(
+                label = stringResource(R.string.proxy_port_label),
+                value = portDraft,
+                placeholder = stringResource(R.string.proxy_port_placeholder),
+                hideText = false,
+                keyboardType = KeyboardType.Number,
+                onValueChange = { portDraft = it },
+                modifier = Modifier.weight(0.6f)
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        FilledTonalButton(
+            onClick = {
+                val port = portDraft.trim().toIntOrNull() ?: return@FilledTonalButton
+                onSetProxy(
+                    ProxyConfig(
+                        enabled = proxy?.enabled ?: true,
+                        scheme = ownScheme,
+                        host = hostDraft.trim(),
+                        port = port
+                    )
+                )
+                hostDraft = ""
+                portDraft = ""
+                Toast.makeText(context, R.string.proxy_saved, Toast.LENGTH_SHORT).show()
+            },
+            enabled = ownValid,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(stringResource(R.string.proxy_save))
+        }
+    }
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    SettingsCard {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TonalIcon(Icons.Rounded.Public)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.proxy_free_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = scheme.onSurface
+                )
+                Text(
+                    text = stringResource(R.string.proxy_free_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = { refreshKey++ }, enabled = !loading) {
+                Icon(
+                    imageVector = Icons.Rounded.Refresh,
+                    contentDescription = stringResource(R.string.proxy_refresh),
+                    tint = scheme.primary
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ProxyConfig.SCHEMES.forEach { candidate ->
+                FilterChip(
+                    selected = protocol == candidate,
+                    onClick = { protocol = candidate },
+                    label = { Text(candidate.uppercase()) }
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        val list = entries
+        when {
+            loading -> Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                Text(
+                    text = stringResource(R.string.proxy_loading),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+            loadError -> Text(
+                text = stringResource(R.string.proxy_load_fail),
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.error
+            )
+            list == null -> {}
+            else -> {
+                val shown = list.take(visibleCount)
+                Text(
+                    text = stringResource(R.string.proxy_count, list.size, shown.size),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                shown.forEach { entry ->
+                    val key = "${entry.ip}:${entry.port}"
+                    ProxyRow(
+                        entry = entry,
+                        fallbackProtocol = protocol,
+                        testing = testingKey == key,
+                        latency = results[key],
+                        failed = key in failed,
+                        onConnect = { config ->
+                            scope.launch {
+                                testingKey = key
+                                val result = onTest(config)
+                                testingKey = null
+                                result.onSuccess { ms ->
+                                    results = results + (key to ms)
+                                    failed = failed - key
+                                    onSetProxy(config)
+                                    Toast.makeText(
+                                        context,
+                                        resources.getString(R.string.proxy_connected_toast, ms),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }.onFailure {
+                                    failed = failed + key
+                                }
+                            }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+                if (list.size > visibleCount) {
+                    TextButton(onClick = { visibleCount += 20 }) {
+                        Text(stringResource(R.string.proxy_more))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProxyRow(
+    entry: ProxyEntry,
+    fallbackProtocol: String,
+    testing: Boolean,
+    latency: Long?,
+    failed: Boolean,
+    onConnect: (ProxyConfig) -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        onClick = {
+            onConnect(
+                ProxyConfig(
+                    enabled = true,
+                    scheme = entry.protocol.ifBlank { fallbackProtocol },
+                    host = entry.ip,
+                    port = entry.port
+                )
+            )
+        },
+        enabled = !testing,
+        shape = RoundedCornerShape(14.dp),
+        color = scheme.surfaceContainerHighest,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${entry.ip}:${entry.port}",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = scheme.onSurface
+                )
+                val geo = listOfNotNull(
+                    entry.country?.takeIf { it.isNotBlank() && it != "Unknown" },
+                    entry.city?.takeIf { it.isNotBlank() && it != "Unknown" },
+                    entry.anonymity?.takeIf { it.isNotBlank() }
+                ).joinToString(" · ")
+                if (geo.isNotEmpty()) {
+                    Text(
+                        text = geo,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant
+                    )
+                }
+            }
+            when {
+                testing -> CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                latency != null -> Text(
+                    text = stringResource(R.string.proxy_latency_ms, latency),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = scheme.primary
+                )
+                failed -> Text(
+                    text = stringResource(R.string.proxy_fail),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = scheme.error
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -1010,13 +1446,15 @@ private fun SettingsField(
     value: String,
     placeholder: String,
     hideText: Boolean,
-    onValueChange: (String) -> Unit
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    keyboardType: KeyboardType = KeyboardType.Text
 ) {
     val scheme = MaterialTheme.colorScheme
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         label = { Text(label) },
         placeholder = {
             Text(
@@ -1028,7 +1466,7 @@ private fun SettingsField(
         singleLine = true,
         visualTransformation = if (hideText) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(
-            keyboardType = if (hideText) KeyboardType.Password else KeyboardType.Text,
+            keyboardType = if (hideText) KeyboardType.Password else keyboardType,
             imeAction = ImeAction.Done
         ),
         colors = OutlinedTextFieldDefaults.colors(

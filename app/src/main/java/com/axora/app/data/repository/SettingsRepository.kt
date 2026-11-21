@@ -7,6 +7,7 @@ import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.axora.app.domain.model.ImageFormat
+import com.axora.app.domain.model.ProxyConfig
 import java.util.Locale
 
 class SettingsRepository(private val context: Context) {
@@ -114,6 +115,35 @@ class SettingsRepository(private val context: Context) {
         appPrefs.edit { putString(KEY_AVAILABLE_UPDATE_TAG, tag) }
     }
 
+    fun getProxy(): ProxyConfig? {
+        val scheme = appPrefs.getString(KEY_PROXY_SCHEME, null)?.takeIf { it.isNotBlank() } ?: return null
+        val host = appPrefs.getString(KEY_PROXY_HOST, null)?.takeIf { it.isNotBlank() } ?: return null
+        val port = appPrefs.getInt(KEY_PROXY_PORT, -1)
+        if (port !in 1..65535) return null
+        return ProxyConfig(
+            enabled = appPrefs.getBoolean(KEY_PROXY_ENABLED, false),
+            scheme = scheme,
+            host = host,
+            port = port
+        )
+    }
+
+    fun setProxy(config: ProxyConfig?) {
+        appPrefs.edit {
+            if (config == null) {
+                remove(KEY_PROXY_ENABLED)
+                remove(KEY_PROXY_SCHEME)
+                remove(KEY_PROXY_HOST)
+                remove(KEY_PROXY_PORT)
+            } else {
+                putBoolean(KEY_PROXY_ENABLED, config.enabled)
+                putString(KEY_PROXY_SCHEME, config.scheme)
+                putString(KEY_PROXY_HOST, config.host)
+                putInt(KEY_PROXY_PORT, config.port)
+            }
+        }
+    }
+
     companion object {
         const val LANGUAGE_RU = "ru"
         const val LANGUAGE_EN = "en"
@@ -134,6 +164,10 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_APP_LANGUAGE = "app_language"
         private const val KEY_LAST_UPDATE_CHECK = "last_update_check"
         private const val KEY_AVAILABLE_UPDATE_TAG = "available_update_tag"
+        private const val KEY_PROXY_ENABLED = "proxy_enabled"
+        private const val KEY_PROXY_SCHEME = "proxy_scheme"
+        private const val KEY_PROXY_HOST = "proxy_host"
+        private const val KEY_PROXY_PORT = "proxy_port"
 
         fun wrapLocale(context: Context): Context {
             val language = context.getSharedPreferences(APP_PREFS_NAME, Context.MODE_PRIVATE)
