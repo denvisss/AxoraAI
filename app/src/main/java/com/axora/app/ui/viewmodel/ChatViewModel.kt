@@ -288,6 +288,10 @@ class ChatViewModel(
     private fun errorMessage(e: Exception): String {
         if (e is UnknownHostException || e is ConnectException) return strings.get(R.string.error_offline)
         if (e is SocketTimeoutException) return strings.get(R.string.error_timeout)
+        // Прокси отвечает на CONNECT ошибкой — виноват прокси, а не сервис; подсказываем пользователю.
+        if (e.message?.contains("response code for CONNECT", ignoreCase = true) == true) {
+            return strings.get(R.string.error_proxy_connect)
+        }
         if (e !is HttpException) {
             val detail = e.message
             return if (detail.isNullOrBlank()) strings.get(R.string.error_unknown)

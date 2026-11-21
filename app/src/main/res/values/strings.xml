@@ -256,6 +256,7 @@
     <string name="error_http">Ошибка сервера: %1$d</string>
     <string name="error_http_detail">Ошибка %1$d: %2$s</string>
     <string name="error_unknown">Неизвестная ошибка</string>
+    <string name="error_proxy_connect">Прокси не пропускает запросы (HTTP 400). Отключите прокси в настройках или выберите другой сервер.</string>
     <string name="error_unknown_detail">Ошибка: %1$s</string>
     <string name="error_empty_file">Сервер вернул пустой файл</string>
     <string name="error_no_image">Сервис не вернул изображение. Попробуйте ещё раз</string>
