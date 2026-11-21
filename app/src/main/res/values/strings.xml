@@ -23,6 +23,29 @@
     <string name="cd_clear_chat">Очистить чат</string>
     <string name="cd_settings">Настройки</string>
     <string name="cd_back">Назад</string>
+    <string name="cd_gallery">Галерея изображений</string>
+    <string name="cd_export_chat">Экспорт чата</string>
+
+    <!-- Gallery -->
+    <string name="gallery_title">Галерея</string>
+    <string name="gallery_empty">Здесь появятся все созданные изображения</string>
+
+    <!-- Prompt examples -->
+    <string name="example_image_1">Кот-космонавт в скафандре, неоновый цифровой арт</string>
+    <string name="example_image_2">Акварель: горное озеро на закате</string>
+    <string name="example_image_3">Неоновый мегаполис в дождь, киберпанк</string>
+    <string name="example_text_1">Придумай сюжет рассказа о путешествии во времени</string>
+    <string name="example_text_2">Объясни, как работают нейросети, простыми словами</string>
+    <string name="example_text_3">Составь план тренировок на неделю</string>
+
+    <!-- Chat export -->
+    <string name="export_user_label">Вы</string>
+    <string name="export_assistant_label">Axora</string>
+    <string name="export_image_marker">[Изображение]</string>
+    <string name="export_video_marker">[Видео]</string>
+    <string name="export_audio_marker">[Аудио]</string>
+    <string name="export_chooser">Экспорт чата</string>
+    <string name="export_empty">В этом чате пока нет сообщений</string>
 
     <!-- Messages -->
     <string name="cd_generated_image">Сгенерированное изображение</string>

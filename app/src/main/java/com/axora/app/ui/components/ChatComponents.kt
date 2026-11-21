@@ -22,9 +22,11 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.ImageNotSupported
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
@@ -80,8 +82,11 @@ fun getGenerationIcon(type: GenerationType) = when (type) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatTopBar(
+    onExportClick: () -> Unit,
     onSettingsClick: () -> Unit,
-    onClearChatClick: () -> Unit
+    onClearChatClick: () -> Unit,
+    onGalleryClick: () -> Unit = {},
+    galleryVisible: Boolean = false
 ) {
     val scheme = MaterialTheme.colorScheme
     TopAppBar(
@@ -93,6 +98,22 @@ fun ChatTopBar(
             )
         },
         actions = {
+            if (galleryVisible) {
+                IconButton(onClick = onGalleryClick) {
+                    Icon(
+                        imageVector = Icons.Rounded.PhotoLibrary,
+                        contentDescription = stringResource(R.string.cd_gallery),
+                        tint = scheme.onSurfaceVariant
+                    )
+                }
+            }
+            IconButton(onClick = onExportClick) {
+                Icon(
+                    imageVector = Icons.Rounded.IosShare,
+                    contentDescription = stringResource(R.string.cd_export_chat),
+                    tint = scheme.onSurfaceVariant
+                )
+            }
             IconButton(onClick = onClearChatClick) {
                 Icon(
                     imageVector = Icons.Rounded.DeleteSweep,
@@ -613,8 +634,14 @@ fun FormatChips(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun EmptyChatPlaceholder(text: String, type: GenerationType) {
+fun EmptyChatPlaceholder(
+    text: String,
+    type: GenerationType,
+    examples: List<String> = emptyList(),
+    onExampleClick: (String) -> Unit = {}
+) {
     val scheme = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
@@ -644,6 +671,26 @@ fun EmptyChatPlaceholder(text: String, type: GenerationType) {
             style = MaterialTheme.typography.bodyLarge,
             color = scheme.onSurfaceVariant
         )
+        if (examples.isNotEmpty()) {
+            Spacer(Modifier.height(20.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                examples.forEach { example ->
+                    SuggestionChip(
+                        onClick = { onExampleClick(example) },
+                        label = {
+                            Text(
+                                text = example,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = scheme.onSurfaceVariant
+                            )
+                        }
+                    )
+                }
+            }
+        }
     }
 }
 

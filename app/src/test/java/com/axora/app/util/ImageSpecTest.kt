@@ -11,6 +11,7 @@ class ImageSpecTest {
         assertEquals(1024 to 1024, ImageSpec.generationSize(ImageFormat.SQUARE))
         assertEquals(896 to 1152, ImageSpec.generationSize(ImageFormat.PORTRAIT))
         assertEquals(1152 to 896, ImageSpec.generationSize(ImageFormat.LANDSCAPE))
+        assertEquals(1536 to 864, ImageSpec.generationSize(ImageFormat.WIDE))
     }
 
     @Test

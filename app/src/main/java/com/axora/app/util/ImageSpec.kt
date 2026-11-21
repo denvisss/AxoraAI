@@ -13,6 +13,7 @@ object ImageSpec {
         ImageFormat.SQUARE -> 1024 to 1024
         ImageFormat.PORTRAIT -> 896 to 1152
         ImageFormat.LANDSCAPE -> 1152 to 896
+        ImageFormat.WIDE -> 1536 to 864
     }
 
     fun editOutputSize(width: Int, height: Int): Pair<Int, Int> {

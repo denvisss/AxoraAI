@@ -23,6 +23,29 @@
     <string name="cd_clear_chat">Clear chat</string>
     <string name="cd_settings">Settings</string>
     <string name="cd_back">Back</string>
+    <string name="cd_gallery">Image gallery</string>
+    <string name="cd_export_chat">Export chat</string>
+
+    <!-- Gallery -->
+    <string name="gallery_title">Gallery</string>
+    <string name="gallery_empty">All your generated images will appear here</string>
+
+    <!-- Prompt examples -->
+    <string name="example_image_1">An astronaut cat in a spacesuit, neon digital art</string>
+    <string name="example_image_2">Watercolor: a mountain lake at sunset</string>
+    <string name="example_image_3">Neon cyberpunk city in the rain</string>
+    <string name="example_text_1">Come up with a story plot about time travel</string>
+    <string name="example_text_2">Explain how neural networks work in simple terms</string>
+    <string name="example_text_3">Make a one-week workout plan</string>
+
+    <!-- Chat export -->
+    <string name="export_user_label">You</string>
+    <string name="export_assistant_label">Axora</string>
+    <string name="export_image_marker">[Image]</string>
+    <string name="export_video_marker">[Video]</string>
+    <string name="export_audio_marker">[Audio]</string>
+    <string name="export_chooser">Export chat</string>
+    <string name="export_empty">No messages in this chat yet</string>
 
     <!-- Messages -->
     <string name="cd_generated_image">Generated image</string>

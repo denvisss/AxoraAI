@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.Network
@@ -81,7 +82,8 @@ import java.io.File
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onGalleryClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var inputText by rememberSaveable { mutableStateOf("") }
@@ -193,8 +195,11 @@ fun ChatScreen(
         topBar = {
             Column {
                 ChatTopBar(
+                    onExportClick = { exportChat(context, uiState.messages) },
                     onSettingsClick = onSettingsClick,
-                    onClearChatClick = { showClearDialog = true }
+                    onClearChatClick = { showClearDialog = true },
+                    onGalleryClick = onGalleryClick,
+                    galleryVisible = uiState.selectedType == GenerationType.IMAGE
                 )
                 GenerationTabs(
                     selectedType = uiState.selectedType,
@@ -225,6 +230,19 @@ fun ChatScreen(
                 contentAlignment = Alignment.Center
             ) {
                 if (uiState.messages.isEmpty() && !uiState.isGenerating) {
+                    val examples = when (uiState.selectedType) {
+                        GenerationType.IMAGE -> listOf(
+                            stringResource(R.string.example_image_1),
+                            stringResource(R.string.example_image_2),
+                            stringResource(R.string.example_image_3)
+                        )
+                        GenerationType.TEXT -> listOf(
+                            stringResource(R.string.example_text_1),
+                            stringResource(R.string.example_text_2),
+                            stringResource(R.string.example_text_3)
+                        )
+                        else -> emptyList()
+                    }
                     EmptyChatPlaceholder(
                         text = stringResource(
                             when (uiState.selectedType) {
@@ -234,7 +252,9 @@ fun ChatScreen(
                                 GenerationType.TEXT -> R.string.empty_text
                             }
                         ),
-                        type = uiState.selectedType
+                        type = uiState.selectedType,
+                        examples = examples,
+                        onExampleClick = { inputText = it }
                     )
                 } else {
                     LazyColumn(
@@ -514,7 +534,7 @@ private fun mediaFile(context: Context, message: ChatMessage): File? {
     }
 }
 
-private fun performSave(context: Context, scope: kotlinx.coroutines.CoroutineScope, message: ChatMessage) {
+fun performSave(context: Context, scope: kotlinx.coroutines.CoroutineScope, message: ChatMessage) {
     val file = mediaFile(context, message) ?: return
     scope.launch {
         val result = runCatching {
@@ -532,11 +552,43 @@ private fun performSave(context: Context, scope: kotlinx.coroutines.CoroutineSco
     }
 }
 
-private fun shareMedia(context: Context, message: ChatMessage) {
+fun shareMedia(context: Context, message: ChatMessage) {
     val file = mediaFile(context, message) ?: return
     if (!SaveImageUtil.share(context, file, message.generationType)) {
         Toast.makeText(context, R.string.share_error, Toast.LENGTH_SHORT).show()
     }
+}
+
+fun exportChat(context: Context, messages: List<ChatMessage>) {
+    val visible = messages.filter { !it.isError }
+    if (visible.isEmpty()) {
+        Toast.makeText(context, R.string.export_empty, Toast.LENGTH_SHORT).show()
+        return
+    }
+    val userLabel = context.getString(R.string.export_user_label)
+    val assistantLabel = context.getString(R.string.export_assistant_label)
+    val body = visible.joinToString("\n\n") { message ->
+        val role = if (message.isUser()) userLabel else assistantLabel
+        val content = when {
+            message.hasMedia() -> (message.originalPrompt ?: message.text).let { prompt ->
+                val marker = context.getString(
+                    when {
+                        message.isImageMessage() -> R.string.export_image_marker
+                        message.isVideoMessage() -> R.string.export_video_marker
+                        else -> R.string.export_audio_marker
+                    }
+                )
+                "$marker $prompt"
+            }
+            else -> message.textContent ?: message.text
+        }
+        "$role:\n$content"
+    }
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, body)
+    }
+    context.startActivity(Intent.createChooser(intent, context.getString(R.string.export_chooser)))
 }
 
 fun copyToClipboard(context: Context, text: String) {

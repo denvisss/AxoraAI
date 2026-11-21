@@ -49,6 +49,8 @@ class ChatViewModelTest {
 
         override fun getChatHistory(type: GenerationType): Flow<List<ChatMessage>> = history
 
+        override fun getAllImages(): Flow<List<ChatMessage>> = history
+
         override suspend fun insertMessage(message: ChatMessage): Long {
             inserted += message
             return inserted.size.toLong()

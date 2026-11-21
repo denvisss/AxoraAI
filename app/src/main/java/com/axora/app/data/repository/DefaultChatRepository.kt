@@ -49,6 +49,9 @@ class DefaultChatRepository(
     override fun getChatHistory(type: GenerationType): Flow<List<ChatMessage>> =
         chatDao.getChatHistory(type.name).map { entities -> entities.map { it.toDomain() } }
 
+    override fun getAllImages(): Flow<List<ChatMessage>> =
+        chatDao.getAllImageMessages().map { entities -> entities.map { it.toDomain() } }
+
     override suspend fun insertMessage(message: ChatMessage): Long =
         chatDao.insertMessage(message.toEntity())
 

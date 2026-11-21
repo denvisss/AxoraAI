@@ -8,6 +8,7 @@ import java.io.File
 
 interface ChatRepository {
     fun getChatHistory(type: GenerationType): Flow<List<ChatMessage>>
+    fun getAllImages(): Flow<List<ChatMessage>>
     suspend fun insertMessage(message: ChatMessage): Long
     suspend fun updateMessage(messageId: Long, newText: String, newOriginal: String?)
     suspend fun deleteMessage(messageId: Long)

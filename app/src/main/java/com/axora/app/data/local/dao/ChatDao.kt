@@ -13,6 +13,9 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE generationType = :type")
     suspend fun getAllMessagesOnce(type: String): List<ChatMessageEntity>
 
+    @Query("SELECT * FROM chat_messages WHERE imageUrl IS NOT NULL AND imageUrl != '' AND isError = 0 ORDER BY timestamp DESC")
+    fun getAllImageMessages(): Flow<List<ChatMessageEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: ChatMessageEntity): Long
 

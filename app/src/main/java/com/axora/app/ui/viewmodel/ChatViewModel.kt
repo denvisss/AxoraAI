@@ -14,8 +14,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,6 +34,9 @@ class ChatViewModel(
 
     private val _uiState = MutableStateFlow(ChatUiState(imageFormat = repository.getImageFormat()))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    val galleryImages: StateFlow<List<ChatMessage>> = repository.getAllImages()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private var historyJob: Job? = null
     private val generationJobs = mutableMapOf<GenerationType, Job>()

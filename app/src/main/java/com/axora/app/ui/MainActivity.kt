@@ -53,9 +53,11 @@ class MainActivity : ComponentActivity() {
             val settingsState by settingsViewModel.uiState.collectAsState()
             val systemDark = isSystemInDarkTheme()
             var showSettings by rememberSaveable { mutableStateOf(false) }
+            var showGallery by rememberSaveable { mutableStateOf(false) }
             val darkTheme = settingsState.darkTheme ?: systemDark
 
             BackHandler(enabled = showSettings) { showSettings = false }
+            BackHandler(enabled = showGallery) { showGallery = false }
 
             AxoraTheme(darkTheme = darkTheme) {
                 Surface(
@@ -76,10 +78,16 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         )
+                    } else if (showGallery) {
+                        GalleryScreen(
+                            viewModel = chatViewModel,
+                            onBack = { showGallery = false }
+                        )
                     } else {
                         ChatScreen(
                             viewModel = chatViewModel,
-                            onSettingsClick = { showSettings = true }
+                            onSettingsClick = { showSettings = true },
+                            onGalleryClick = { showGallery = true }
                         )
                     }
                 }
