@@ -634,7 +634,6 @@ fun FormatChips(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EmptyChatPlaceholder(
     text: String,
@@ -643,10 +642,11 @@ fun EmptyChatPlaceholder(
     onExampleClick: (String) -> Unit = {}
 ) {
     val scheme = MaterialTheme.colorScheme
+    val accent = generationTypeColor(type)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 40.dp),
+            .padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -669,25 +669,52 @@ fun EmptyChatPlaceholder(
             text = text,
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.bodyLarge,
-            color = scheme.onSurfaceVariant
+            color = scheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 20.dp)
         )
         if (examples.isNotEmpty()) {
-            Spacer(Modifier.height(20.dp))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Spacer(Modifier.height(24.dp))
+            Text(
+                text = stringResource(R.string.prompt_examples_title),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = accent
+            )
+            Spacer(Modifier.height(10.dp))
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
                 examples.forEach { example ->
-                    SuggestionChip(
-                        onClick = { onExampleClick(example) },
-                        label = {
+                    val shape = RoundedCornerShape(18.dp)
+                    Surface(
+                        shape = shape,
+                        color = accent.copy(alpha = 0.08f),
+                        border = BorderStroke(1.dp, accent.copy(alpha = 0.28f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(shape)
+                            .clickable { onExampleClick(example) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = null,
+                                tint = accent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
                             Text(
                                 text = example,
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = scheme.onSurfaceVariant
+                                color = scheme.onSurface,
+                                modifier = Modifier.weight(1f)
                             )
                         }
-                    )
+                    }
                 }
             }
         }

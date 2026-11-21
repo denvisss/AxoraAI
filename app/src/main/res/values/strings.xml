@@ -37,6 +37,7 @@
     <string name="example_text_1">Придумай сюжет рассказа о путешествии во времени</string>
     <string name="example_text_2">Объясни, как работают нейросети, простыми словами</string>
     <string name="example_text_3">Составь план тренировок на неделю</string>
+    <string name="prompt_examples_title">Идеи для промптов</string>
 
     <!-- Chat export -->
     <string name="export_user_label">Вы</string>

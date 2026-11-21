@@ -37,6 +37,7 @@
     <string name="example_text_1">Come up with a story plot about time travel</string>
     <string name="example_text_2">Explain how neural networks work in simple terms</string>
     <string name="example_text_3">Make a one-week workout plan</string>
+    <string name="prompt_examples_title">Prompt ideas</string>
 
     <!-- Chat export -->
     <string name="export_user_label">You</string>
