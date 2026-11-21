@@ -7,9 +7,6 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ChatDao {
 
-    @Query("SELECT * FROM chat_messages WHERE generationType = :type ORDER BY timestamp ASC")
-    fun getChatHistory(type: String): Flow<List<ChatMessageEntity>>
-
     // Пагинация: последние limit сообщений DESC — репозиторий разворачивает в ASC.
     @Query("SELECT * FROM chat_messages WHERE generationType = :type ORDER BY timestamp DESC LIMIT :limit")
     fun getChatHistoryDesc(type: String, limit: Int): Flow<List<ChatMessageEntity>>

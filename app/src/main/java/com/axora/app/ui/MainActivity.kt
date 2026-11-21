@@ -48,9 +48,9 @@ import com.axora.app.ui.viewmodel.SettingsViewModel
 import com.axora.app.ui.viewmodel.SettingsViewModelFactory
 import com.axora.app.ui.viewmodel.TemplateViewModel
 import com.axora.app.ui.viewmodel.TemplateViewModelFactory
+import com.axora.app.util.ImageImport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -154,20 +154,9 @@ class MainActivity : ComponentActivity() {
     private fun handleSharedImage(intent: Intent?, viewModel: ChatViewModel) {
         if (intent?.action != Intent.ACTION_SEND || intent.type?.startsWith("image/") != true) return
         val uri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java) ?: return
-        val resolver = contentResolver
         lifecycleScope.launch(Dispatchers.IO) {
-            runCatching {
-                val dir = File(filesDir, "imported").apply { mkdirs() }
-                val out = File(dir, "shared_${System.currentTimeMillis()}.jpg")
-                resolver.openInputStream(uri)?.use { input ->
-                    out.outputStream().use { input.copyTo(it) }
-                } ?: return@launch
-                if (out.length() == 0L) {
-                    out.delete()
-                    return@launch
-                }
-                viewModel.importImageFile(out)
-            }
+            val file = ImageImport.copyToImported(this@MainActivity, uri, prefix = "shared") ?: return@launch
+            viewModel.importImageFile(file)
         }
     }
 }

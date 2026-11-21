@@ -84,6 +84,7 @@ import com.axora.app.ui.theme.AxoraBlue
 import com.axora.app.ui.theme.AxoraViolet
 import com.axora.app.ui.viewmodel.ChatViewModel
 import com.axora.app.ui.viewmodel.TemplateViewModel
+import com.axora.app.util.ImageImport
 import com.axora.app.util.SaveImageUtil
 import com.axora.app.util.VoiceInputHelper
 import kotlinx.coroutines.Dispatchers
@@ -149,7 +150,7 @@ fun ChatScreen(
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
-            val file = withContext(Dispatchers.IO) { copyToImported(context, uri) }
+            val file = withContext(Dispatchers.IO) { ImageImport.copyToImported(context, uri) }
             if (file != null) {
                 viewModel.importImageFile(file)
                 Toast.makeText(context, R.string.imported_hint, Toast.LENGTH_LONG).show()
@@ -904,20 +905,6 @@ fun copyToClipboard(context: Context, text: String) {
 
 private fun formatDate(timestamp: Long): String =
     SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(timestamp))
-
-// Копия выбранного фото локально: content-URI живёт до перезапуска процесса.
-private fun copyToImported(context: Context, uri: Uri): File? = runCatching {
-    val dir = File(context.filesDir, "imported").apply { mkdirs() }
-    val out = File(dir, "imported_${System.currentTimeMillis()}.jpg")
-    context.contentResolver.openInputStream(uri)?.use { input ->
-        out.outputStream().use { input.copyTo(it) }
-    } ?: return null
-    if (out.length() == 0L) {
-        out.delete()
-        return null
-    }
-    out
-}.getOrNull()
 
 @Composable
 private fun StreamingBubble(text: String) {
