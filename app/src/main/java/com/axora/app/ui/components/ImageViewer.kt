@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ImageNotSupported
@@ -45,7 +46,8 @@ fun ImageViewerDialog(
     initialIndex: Int,
     onDismiss: () -> Unit,
     onSave: (ChatMessage) -> Unit,
-    onShare: (ChatMessage) -> Unit
+    onShare: (ChatMessage) -> Unit,
+    onEdit: ((ChatMessage) -> Unit)? = null
 ) {
     if (messages.isEmpty()) return
     Dialog(
@@ -100,6 +102,15 @@ fun ImageViewerDialog(
                         contentDescription = stringResource(R.string.action_save),
                         tint = Color.White
                     )
+                }
+                if (onEdit != null) {
+                    IconButton(onClick = { onEdit.invoke(messages[pagerState.currentPage]) }) {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = stringResource(R.string.action_edit_image),
+                            tint = Color.White
+                        )
+                    }
                 }
                 IconButton(onClick = { onShare(messages[pagerState.currentPage]) }) {
                     Icon(

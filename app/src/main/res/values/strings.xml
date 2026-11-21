@@ -169,6 +169,12 @@
     <string name="templates_placeholders">Плейсхолдеров: %1$d</string>
     <string name="templates_fill_title">Заполните шаблон</string>
     <string name="cd_templates">Шаблоны</string>
+    <string name="cd_attach">Прикрепить изображение</string>
+    <string name="imported_hint">Картинка в чате — нажми на неё и опиши, что изменить</string>
+    <string name="edit_preset_similar_short">Похожая</string>
+    <string name="edit_preset_similar">Сделай очень похожее изображение, но измени: </string>
+    <string name="edit_preset_style_short">Стиль</string>
+    <string name="edit_preset_style">Перерисуй изображение в стиле: </string>
     <string name="stats_section">Статистика</string>
     <string name="stats_images">Изображения</string>
     <string name="stats_texts">Сообщения чата</string>

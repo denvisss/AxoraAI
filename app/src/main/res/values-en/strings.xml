@@ -169,6 +169,12 @@
     <string name="templates_placeholders">Placeholders: %1$d</string>
     <string name="templates_fill_title">Fill the template</string>
     <string name="cd_templates">Templates</string>
+    <string name="cd_attach">Attach image</string>
+    <string name="imported_hint">The image is in the chat — tap it and describe what to change</string>
+    <string name="edit_preset_similar_short">Similar</string>
+    <string name="edit_preset_similar">Make a very similar image but change: </string>
+    <string name="edit_preset_style_short">Style</string>
+    <string name="edit_preset_style">Redraw the image in the style of: </string>
     <string name="stats_section">Statistics</string>
     <string name="stats_images">Images</string>
     <string name="stats_texts">Chat messages</string>

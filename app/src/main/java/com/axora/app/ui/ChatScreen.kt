@@ -11,9 +11,11 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -38,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -139,6 +142,19 @@ fun ChatScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (!granted) Toast.makeText(context, noMicPermission, Toast.LENGTH_SHORT).show()
+    }
+
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val file = withContext(Dispatchers.IO) { copyToImported(context, uri) }
+            if (file != null) {
+                viewModel.importImageFile(file)
+                Toast.makeText(context, R.string.imported_hint, Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     val storageLauncher = rememberLauncherForActivityResult(
@@ -424,6 +440,12 @@ fun ChatScreen(
                     inputText = ""
                 },
                 onTemplatesClick = { showTemplatesDialog = true },
+                attachImages = uiState.selectedType == GenerationType.IMAGE,
+                onAttachImage = {
+                    pickImageLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
                 onStartVoice = { startVoiceInput() },
                 onStopVoice = { stopVoiceInput() },
                 isGenerating = uiState.isGenerating,
@@ -713,11 +735,27 @@ fun ChatScreen(
     }
 
     editImageMessage?.let { message ->
+        val presetSimilar = stringResource(R.string.edit_preset_similar)
+        val presetStyle = stringResource(R.string.edit_preset_style)
         AlertDialog(
             onDismissRequest = { editImageMessage = null },
             title = { Text(stringResource(R.string.edit_image_title)) },
             text = {
                 Column {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        AssistChip(
+                            onClick = { editImageText = presetSimilar },
+                            label = { Text(stringResource(R.string.edit_preset_similar_short)) }
+                        )
+                        AssistChip(
+                            onClick = { editImageText = presetStyle },
+                            label = { Text(stringResource(R.string.edit_preset_style_short)) }
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = editImageText,
                         onValueChange = { editImageText = it },
@@ -755,7 +793,12 @@ fun ChatScreen(
             initialIndex = index,
             onDismiss = { viewerIndex = null },
             onSave = { saveMedia(it) },
-            onShare = { shareMedia(context, it) }
+            onShare = { shareMedia(context, it) },
+            onEdit = { message ->
+                viewerIndex = null
+                editImageMessage = message
+                editImageText = ""
+            }
         )
     }
 }
@@ -862,6 +905,20 @@ fun copyToClipboard(context: Context, text: String) {
 private fun formatDate(timestamp: Long): String =
     SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(timestamp))
 
+// Копия выбранного фото локально: content-URI живёт до перезапуска процесса.
+private fun copyToImported(context: Context, uri: Uri): File? = runCatching {
+    val dir = File(context.filesDir, "imported").apply { mkdirs() }
+    val out = File(dir, "imported_${System.currentTimeMillis()}.jpg")
+    context.contentResolver.openInputStream(uri)?.use { input ->
+        out.outputStream().use { input.copyTo(it) }
+    } ?: return null
+    if (out.length() == 0L) {
+        out.delete()
+        return null
+    }
+    out
+}.getOrNull()
+
 @Composable
 private fun StreamingBubble(text: String) {
     val scheme = MaterialTheme.colorScheme
@@ -903,6 +960,8 @@ fun BottomInputBar(
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
     onTemplatesClick: () -> Unit,
+    attachImages: Boolean,
+    onAttachImage: () -> Unit,
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
     isGenerating: Boolean,
@@ -1002,6 +1061,21 @@ fun BottomInputBar(
                     tint = scheme.onSurfaceVariant,
                     modifier = Modifier.size(22.dp)
                 )
+            }
+
+            if (attachImages) {
+                IconButton(
+                    onClick = onAttachImage,
+                    enabled = !isGenerating,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.AddPhotoAlternate,
+                        contentDescription = stringResource(R.string.cd_attach),
+                        tint = scheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
         }
     }
