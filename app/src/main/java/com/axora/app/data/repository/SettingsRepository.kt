@@ -82,8 +82,17 @@ class SettingsRepository(private val context: Context) {
     fun isDarkThemeEnabled(): Boolean? =
         if (appPrefs.contains(KEY_DARK_THEME)) appPrefs.getBoolean(KEY_DARK_THEME, false) else null
 
-    fun setDarkThemeEnabled(enabled: Boolean) {
-        appPrefs.edit { putBoolean(KEY_DARK_THEME, enabled) }
+    fun setDarkThemeEnabled(enabled: Boolean?) {
+        appPrefs.edit {
+            if (enabled == null) remove(KEY_DARK_THEME) else putBoolean(KEY_DARK_THEME, enabled)
+        }
+    }
+
+    fun getTextModel(): String =
+        appPrefs.getString(KEY_TEXT_MODEL, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_TEXT_MODEL
+
+    fun setTextModel(model: String) {
+        appPrefs.edit { putString(KEY_TEXT_MODEL, model) }
     }
 
     fun getImageFormat(): ImageFormat =
@@ -113,6 +122,12 @@ class SettingsRepository(private val context: Context) {
 
     fun setAvailableUpdateTag(tag: String?) {
         appPrefs.edit { putString(KEY_AVAILABLE_UPDATE_TAG, tag) }
+    }
+
+    fun getLastWhatsNewVersionCode(): Int = appPrefs.getInt(KEY_WHATS_NEW_SHOWN, 0)
+
+    fun setLastWhatsNewVersionCode(code: Int) {
+        appPrefs.edit { putInt(KEY_WHATS_NEW_SHOWN, code) }
     }
 
     fun getProxy(): ProxyConfig? {
@@ -164,10 +179,17 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_APP_LANGUAGE = "app_language"
         private const val KEY_LAST_UPDATE_CHECK = "last_update_check"
         private const val KEY_AVAILABLE_UPDATE_TAG = "available_update_tag"
+        private const val KEY_WHATS_NEW_SHOWN = "whats_new_shown_code"
         private const val KEY_PROXY_ENABLED = "proxy_enabled"
         private const val KEY_PROXY_SCHEME = "proxy_scheme"
         private const val KEY_PROXY_HOST = "proxy_host"
         private const val KEY_PROXY_PORT = "proxy_port"
+        private const val KEY_TEXT_MODEL = "groq_text_model"
+
+        const val TEXT_MODEL_GPT_120B = "openai/gpt-oss-120b"
+        const val TEXT_MODEL_GPT_20B = "openai/gpt-oss-20b"
+        const val TEXT_MODEL_LLAMA_70B = "llama-3.3-70b-versatile"
+        const val DEFAULT_TEXT_MODEL = TEXT_MODEL_GPT_120B
 
         fun wrapLocale(context: Context): Context {
             val language = context.getSharedPreferences(APP_PREFS_NAME, Context.MODE_PRIVATE)

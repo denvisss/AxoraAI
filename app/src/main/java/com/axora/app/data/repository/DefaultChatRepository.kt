@@ -16,12 +16,14 @@ import com.axora.app.data.network.CloudflareApiService
 import com.axora.app.data.network.Message
 import com.axora.app.data.network.TextApiService
 import com.axora.app.data.network.TranslationClient
+import com.axora.app.di.NetworkModule
 import com.axora.app.domain.model.ChatMessage
 import com.axora.app.domain.model.GenerationType
 import com.axora.app.domain.model.ImageFormat
 import com.axora.app.domain.model.Role
 import com.axora.app.util.ImageSpec
 import com.axora.app.util.SaveImageUtil
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -46,8 +48,13 @@ class DefaultChatRepository(
     private val stringsContext: Context
         get() = SettingsRepository.wrapLocale(context)
 
-    override fun getChatHistory(type: GenerationType): Flow<List<ChatMessage>> =
-        chatDao.getChatHistory(type.name).map { entities -> entities.map { it.toDomain() } }
+    private val gson = Gson()
+
+    override fun getChatHistory(type: GenerationType, limit: Int): Flow<List<ChatMessage>> =
+        chatDao.getChatHistoryDesc(type.name, limit).map { entities -> entities.map { it.toDomain() }.reversed() }
+
+    override suspend fun searchHistory(query: String): List<ChatMessage> =
+        chatDao.searchMessages(query).map { it.toDomain() }
 
     override fun getAllImages(): Flow<List<ChatMessage>> =
         chatDao.getAllImageMessages().map { entities -> entities.map { it.toDomain() } }
@@ -131,7 +138,40 @@ class DefaultChatRepository(
     override suspend fun generateText(prompt: String, history: List<ChatMessage>): String {
         val apiKey = settings.getGroqApiKey().takeIf { it.isNotBlank() }
             ?: throw IOException(stringsContext.getString(R.string.groq_key_required))
-        val messages = buildList {
+        val request = ChatMessageRequest(
+            model = settings.getTextModel(),
+            messages = buildTextMessages(prompt, history),
+            temperature = 0.7,
+            max_tokens = TEXT_MAX_TOKENS
+        )
+        val response = textApiService.chatCompletions(request, "Bearer $apiKey")
+        return response.choices?.firstOrNull()?.message?.content?.trim()?.takeIf { it.isNotEmpty() }
+            ?: throw IOException(stringsContext.getString(R.string.text_empty))
+    }
+
+    override suspend fun generateTextStreamed(
+        prompt: String,
+        history: List<ChatMessage>,
+        onDelta: (String) -> Unit
+    ): String {
+        val apiKey = settings.getGroqApiKey().takeIf { it.isNotBlank() }
+            ?: throw IOException(stringsContext.getString(R.string.groq_key_required))
+        val body = gson.toJson(
+            ChatMessageRequest(
+                model = settings.getTextModel(),
+                messages = buildTextMessages(prompt, history),
+                temperature = 0.7,
+                max_tokens = TEXT_MAX_TOKENS,
+                stream = true
+            )
+        )
+        val full = NetworkModule.streamGroqChat(body, apiKey, onDelta).trim()
+        if (full.isEmpty()) throw IOException(stringsContext.getString(R.string.text_empty))
+        return full
+    }
+
+    private fun buildTextMessages(prompt: String, history: List<ChatMessage>): List<Message> =
+        buildList {
             add(Message(role = "system", content = TEXT_SYSTEM_PROMPT))
             // При «Повторить»/регенерации исходный запрос уже в истории — не дублируем его в конце.
             val context = history.dropLastWhile { it.isUser() && (it.textContent ?: it.text) == prompt }
@@ -143,16 +183,6 @@ class DefaultChatRepository(
             }
             add(Message(content = prompt))
         }
-        val request = ChatMessageRequest(
-            model = GROQ_TEXT_MODEL,
-            messages = messages,
-            temperature = 0.7,
-            max_tokens = TEXT_MAX_TOKENS
-        )
-        val response = textApiService.chatCompletions(request, "Bearer $apiKey")
-        return response.choices?.firstOrNull()?.message?.content?.trim()?.takeIf { it.isNotEmpty() }
-            ?: throw IOException(stringsContext.getString(R.string.text_empty))
-    }
 
     override suspend fun translateToEnglish(text: String): String =
         if (!settings.isAutoTranslateEnabled()) text
@@ -267,7 +297,6 @@ class DefaultChatRepository(
     )
 
     companion object {
-        private const val GROQ_TEXT_MODEL = "openai/gpt-oss-120b"
         private const val TEXT_CONTEXT_MESSAGES = 10
         private const val TEXT_MAX_TOKENS = 1000
         private const val TEXT_SYSTEM_PROMPT =

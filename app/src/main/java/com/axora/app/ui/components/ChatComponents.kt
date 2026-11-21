@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.TextFields
@@ -82,6 +83,7 @@ fun getGenerationIcon(type: GenerationType) = when (type) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatTopBar(
+    onSearchClick: () -> Unit,
     onExportClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onClearChatClick: () -> Unit,
@@ -106,6 +108,13 @@ fun ChatTopBar(
                         tint = scheme.onSurfaceVariant
                     )
                 }
+            }
+            IconButton(onClick = onSearchClick) {
+                Icon(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = stringResource(R.string.cd_search),
+                    tint = scheme.onSurfaceVariant
+                )
             }
             IconButton(onClick = onExportClick) {
                 Icon(
@@ -281,11 +290,18 @@ fun MessageBubble(
                     .clickable { onClick() }
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Text(
-                    text = message.textContent ?: message.text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = textColor
-                )
+                if (!isUser && message.generationType == GenerationType.TEXT && !message.isError) {
+                    MarkdownText(
+                        markdown = message.textContent ?: message.text,
+                        color = textColor
+                    )
+                } else {
+                    Text(
+                        text = message.textContent ?: message.text,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = textColor
+                    )
+                }
             }
         }
 

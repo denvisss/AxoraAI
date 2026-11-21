@@ -8,7 +8,8 @@ data class ChatMessageRequest(
     val model: String,
     val messages: List<Message>,
     val temperature: Double? = null,
-    val max_tokens: Int? = null
+    val max_tokens: Int? = null,
+    val stream: Boolean? = null
 )
 
 data class Message(val role: String = "user", val content: String)

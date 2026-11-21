@@ -2,19 +2,34 @@ package com.axora.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
+import android.net.Uri
 import com.axora.app.BuildConfig
+import com.axora.app.data.local.dao.ChatDao
+import com.axora.app.data.local.entity.ChatMessageEntity
 import com.axora.app.data.network.GitHubRelease
 import com.axora.app.data.network.ProxyEntry
+import com.axora.app.data.repository.BackupData
+import com.axora.app.data.repository.BackupMessage
+import com.axora.app.data.repository.BackupSettings
 import com.axora.app.data.repository.MediaStorage
 import com.axora.app.data.repository.SettingsRepository
+import com.axora.app.data.repository.TemplateStore
 import com.axora.app.data.repository.UpdateManager
 import com.axora.app.di.NetworkModule
+import com.axora.app.domain.model.GenerationStats
+import com.axora.app.domain.model.GenerationType
+import com.axora.app.domain.model.ImageFormat
 import com.axora.app.domain.model.ProxyConfig
+import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.IOException
 
 data class SettingsUiState(
     val groqApiKey: String = "",
@@ -23,11 +38,13 @@ data class SettingsUiState(
     val autoSave: Boolean = false,
     val autoTranslate: Boolean = true,
     val darkTheme: Boolean? = null,
+    val textModel: String = SettingsRepository.DEFAULT_TEXT_MODEL,
     val language: String = SettingsRepository.DEFAULT_LANGUAGE,
     val mediaSize: Long = 0L,
     val keyStorageEncrypted: Boolean = true,
     val availableUpdateTag: String = "",
     val proxy: ProxyConfig? = null,
+    val stats: GenerationStats = GenerationStats(),
     val update: UpdateUiState = UpdateUiState()
 )
 
@@ -45,8 +62,15 @@ data class UpdateUiState(
 class SettingsViewModel(
     private val settings: SettingsRepository,
     private val mediaStorage: MediaStorage,
-    private val updateManager: UpdateManager
+    private val updateManager: UpdateManager,
+    private val chatDao: ChatDao,
+    private val templateStore: TemplateStore
 ) : ViewModel() {
+
+    private val gson = Gson()
+
+    private val _pendingImport = MutableStateFlow<BackupData?>(null)
+    val pendingImport: StateFlow<BackupData?> = _pendingImport.asStateFlow()
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -64,6 +88,7 @@ class SettingsViewModel(
                 autoSave = settings.isAutoSaveEnabled(),
                 autoTranslate = settings.isAutoTranslateEnabled(),
                 darkTheme = settings.isDarkThemeEnabled(),
+                textModel = settings.getTextModel(),
                 language = settings.getAppLanguage(),
                 keyStorageEncrypted = settings.isKeyStorageEncrypted,
                 availableUpdateTag = settings.getAvailableUpdateTag()
@@ -76,7 +101,38 @@ class SettingsViewModel(
             val size = mediaStorage.generatedMediaSize()
             _uiState.update { it.copy(mediaSize = size) }
         }
+        viewModelScope.launch {
+            val stats = withContext(Dispatchers.IO) { loadStats() }
+            _uiState.update { it.copy(stats = stats) }
+        }
     }
+
+    private suspend fun loadStats(): GenerationStats {
+        val dayStart = System.currentTimeMillis() - 24L * 60 * 60 * 1000
+        val weekStart = System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+        return GenerationStats(
+            imagesToday = chatDao.countAssistantMessages(GenerationType.IMAGE.name, dayStart),
+            imagesWeek = chatDao.countAssistantMessages(GenerationType.IMAGE.name, weekStart),
+            imagesTotal = chatDao.countAssistantMessagesTotal(GenerationType.IMAGE.name),
+            textsToday = chatDao.countAssistantMessages(GenerationType.TEXT.name, dayStart),
+            textsWeek = chatDao.countAssistantMessages(GenerationType.TEXT.name, weekStart),
+            textsTotal = chatDao.countAssistantMessagesTotal(GenerationType.TEXT.name)
+        )
+    }
+
+    private fun BackupMessage.toEntity() = ChatMessageEntity(
+        role = role,
+        text = text,
+        imageUrl = imageUrl,
+        videoUrl = videoUrl,
+        audioUrl = audioUrl,
+        textContent = textContent,
+        originalPrompt = originalPrompt,
+        translatedPrompt = translatedPrompt,
+        generationType = generationType,
+        timestamp = timestamp,
+        isError = isError
+    )
 
     fun setGroqApiKey(key: String) {
         settings.setGroqApiKey(key)
@@ -103,9 +159,14 @@ class SettingsViewModel(
         _uiState.update { it.copy(autoTranslate = enabled) }
     }
 
-    fun setDarkTheme(enabled: Boolean) {
+    fun setDarkTheme(enabled: Boolean?) {
         settings.setDarkThemeEnabled(enabled)
         _uiState.update { it.copy(darkTheme = enabled) }
+    }
+
+    fun setTextModel(model: String) {
+        settings.setTextModel(model)
+        _uiState.update { it.copy(textModel = model) }
     }
 
     fun setAppLanguage(language: String) {
@@ -195,5 +256,114 @@ class SettingsViewModel(
             mediaStorage.clearGeneratedMedia()
             _uiState.update { it.copy(mediaSize = mediaStorage.generatedMediaSize()) }
         }
+    }
+
+    // ===== Резервная копия (без API-ключей и медиафайлов) =====
+
+    fun exportBackup(uri: Uri, context: Context, onError: (String) -> Unit, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    val json = gson.toJson(buildBackup())
+                    context.contentResolver.openOutputStream(uri)?.use { stream ->
+                        stream.write(json.toByteArray(Charsets.UTF_8))
+                    } ?: throw IOException("Cannot open output stream")
+                }
+            }
+            if (result.isSuccess) onSuccess()
+            else onError(result.exceptionOrNull()?.message.orEmpty())
+        }
+    }
+
+    fun readBackupForImport(uri: Uri, context: Context, onError: (String) -> Unit) {
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    val json = context.contentResolver.openInputStream(uri)?.use { stream ->
+                        stream.readBytes().toString(Charsets.UTF_8)
+                    } ?: throw IOException("Cannot open input stream")
+                    gson.fromJson(json, BackupData::class.java)
+                        ?: throw IOException("Empty backup")
+                }
+            }
+            result.onSuccess { backup ->
+                if (backup.version > 1) {
+                    onError("Unsupported version ${backup.version}")
+                } else {
+                    _pendingImport.value = backup
+                }
+            }.onFailure { onError(it.message.orEmpty()) }
+        }
+    }
+
+    fun cancelImport() {
+        _pendingImport.value = null
+    }
+
+    fun confirmImport(onDone: () -> Unit, onError: (String) -> Unit) {
+        val backup = _pendingImport.value ?: return
+        viewModelScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    chatDao.deleteAllMessages()
+                    backup.messages.forEach { entity ->
+                        chatDao.insertMessage(entity.toEntity())
+                    }
+                    templateStore.save(backup.templates)
+                    val s = backup.settings
+                    settings.setDarkThemeEnabled(s.darkTheme)
+                    settings.setTextModel(s.textModel)
+                    settings.setAppLanguage(s.language)
+                    settings.setAutoSaveEnabled(s.autoSave)
+                    settings.setAutoTranslateEnabled(s.autoTranslate)
+                    ImageFormat.entries.firstOrNull { it.name == s.imageFormat }
+                        ?.let { settings.setImageFormat(it) }
+                    settings.setProxy(s.proxy)
+                    NetworkModule.proxyConfig.value = s.proxy
+                }
+            }
+            if (result.isSuccess) {
+                _pendingImport.value = null
+                refresh()
+                onDone()
+            } else {
+                onError(result.exceptionOrNull()?.message.orEmpty())
+            }
+        }
+    }
+
+    private suspend fun buildBackup(): BackupData = withContext(Dispatchers.IO) {
+        val messages = GenerationType.entries.flatMap { type ->
+            chatDao.getAllMessagesOnce(type.name)
+        }
+        BackupData(
+            version = 1,
+            exportedAt = System.currentTimeMillis(),
+            settings = BackupSettings(
+                darkTheme = settings.isDarkThemeEnabled(),
+                textModel = settings.getTextModel(),
+                language = settings.getAppLanguage(),
+                autoSave = settings.isAutoSaveEnabled(),
+                autoTranslate = settings.isAutoTranslateEnabled(),
+                imageFormat = settings.getImageFormat().name,
+                proxy = settings.getProxy()
+            ),
+            messages = messages.map { entity ->
+                BackupMessage(
+                    role = entity.role,
+                    text = entity.text,
+                    imageUrl = entity.imageUrl,
+                    videoUrl = entity.videoUrl,
+                    audioUrl = entity.audioUrl,
+                    textContent = entity.textContent,
+                    originalPrompt = entity.originalPrompt,
+                    translatedPrompt = entity.translatedPrompt,
+                    generationType = entity.generationType,
+                    timestamp = entity.timestamp,
+                    isError = entity.isError
+                )
+            },
+            templates = templateStore.load()
+        )
     }
 }

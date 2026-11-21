@@ -39,6 +39,15 @@ class UpdateManager(
         }
     }
 
+    // Последний опубликованный релиз с APK — для диалога «Что нового». Ошибки сети глушатся.
+    suspend fun latestRelease(): GitHubRelease? = withContext(Dispatchers.IO) {
+        runCatching {
+            gitHubApi.releases().firstOrNull { release ->
+                !release.draft && release.assets.any { it.name.endsWith(".apk") }
+            }
+        }.getOrNull()
+    }
+
     suspend fun download(release: GitHubRelease, onProgress: (Int) -> Unit): File =
         withContext(Dispatchers.IO) {
             val asset = release.assets.first { it.name.endsWith(".apk") }
@@ -109,6 +118,9 @@ class UpdateManager(
             }
             return false
         }
+
+        fun sameVersion(tag: String, current: String): Boolean =
+            parse(tag) != null && parse(tag) == parse(current)
 
         private fun parse(version: String): List<Int>? {
             val parts = version.trim().removePrefix("v").split('.')

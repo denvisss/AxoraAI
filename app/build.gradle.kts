@@ -111,6 +111,9 @@ dependencies {
     // Image loading (Coil)
     implementation(libs.coil.compose)
 
+    // Baseline profile consumption (generator comes later with a macrobenchmark module)
+    implementation(libs.androidx.profileinstaller)
+
     // Encrypted storage for the API key
     implementation(libs.androidx.security.crypto)
 
@@ -120,4 +123,13 @@ dependencies {
     // Tests
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+
+    // Instrumented UI tests (Compose)
+    val testBom = platform(libs.androidx.compose.bom)
+    androidTestImplementation(testBom)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    androidTestImplementation(libs.androidx.test.junit)
+    // Свежий espresso: старые версии ломаются на Android 17 (InputManager.getInstance)
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
 }

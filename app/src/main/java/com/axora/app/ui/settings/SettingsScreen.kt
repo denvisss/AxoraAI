@@ -1,7 +1,10 @@
 package com.axora.app.ui.settings
 
 import android.content.Intent
+import android.net.Uri
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import android.text.format.Formatter
@@ -26,11 +29,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Lan
@@ -42,6 +49,7 @@ import androidx.compose.material.icons.rounded.SaveAlt
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.SmartToy
 import androidx.compose.material.icons.rounded.SystemUpdateAlt
+import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material.icons.rounded.WbSunny
@@ -65,17 +73,25 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.axora.app.BuildConfig
 import com.axora.app.R
 import com.axora.app.data.network.ProxyEntry
+import com.axora.app.data.repository.BackupData
 import com.axora.app.data.repository.SettingsRepository
+import com.axora.app.domain.model.GenerationStats
 import com.axora.app.domain.model.ProxyConfig
+import com.axora.app.domain.model.PromptTemplate
 import com.axora.app.ui.theme.AxoraGradient
 import com.axora.app.ui.viewmodel.SettingsViewModel
+import com.axora.app.ui.viewmodel.TemplateViewModel
 import com.axora.app.ui.viewmodel.UpdateStatus
 import com.axora.app.ui.viewmodel.UpdateUiState
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -131,9 +147,36 @@ private enum class SettingsLevel { Main, Connection, Proxy }
 fun SettingsScreen(
     onBack: () -> Unit,
     viewModel: SettingsViewModel,
+    templateViewModel: TemplateViewModel,
     onLanguageChange: (String) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    val templates by templateViewModel.templates.collectAsState()
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val pendingImport by viewModel.pendingImport.collectAsState()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let { target ->
+        viewModel.exportBackup(
+            target, context,
+            onError = { message ->
+                Toast.makeText(context, resources.getString(R.string.backup_error, message), Toast.LENGTH_LONG).show()
+            },
+            onSuccess = { Toast.makeText(context, R.string.export_done, Toast.LENGTH_SHORT).show() }
+        )
+    } }
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { target ->
+        viewModel.readBackupForImport(
+            target, context,
+            onError = { message ->
+                Toast.makeText(context, resources.getString(R.string.backup_error, message), Toast.LENGTH_LONG).show()
+            }
+        )
+    } }
     var level by rememberSaveable { mutableStateOf(SettingsLevel.Main) }
     val scheme = MaterialTheme.colorScheme
 
@@ -216,7 +259,28 @@ fun SettingsScreen(
                         autoTranslate = state.autoTranslate,
                         onAutoTranslateChange = viewModel::setAutoTranslate,
                         darkTheme = state.darkTheme,
-                        onToggleDarkTheme = viewModel::setDarkTheme,
+                        onThemeChange = viewModel::setDarkTheme,
+                        textModel = state.textModel,
+                        onTextModelChange = viewModel::setTextModel,
+                        templates = templates,
+                        onAddTemplate = templateViewModel::addTemplate,
+                        onDeleteTemplate = templateViewModel::deleteTemplate,
+                        stats = state.stats,
+                        pendingImport = pendingImport,
+                        onExportPick = {
+                            val stamp = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
+                            exportLauncher.launch("axora_backup_$stamp.json")
+                        },
+                        onImportPick = { importLauncher.launch(arrayOf("application/json")) },
+                        onConfirmImport = {
+                            viewModel.confirmImport(
+                                onDone = { Toast.makeText(context, R.string.backup_done, Toast.LENGTH_SHORT).show() },
+                                onError = { message ->
+                                    Toast.makeText(context, resources.getString(R.string.backup_error, message), Toast.LENGTH_LONG).show()
+                                }
+                            )
+                        },
+                        onCancelImport = { viewModel.cancelImport() },
                         language = state.language,
                         onLanguageChange = onLanguageChange,
                         update = state.update,
@@ -245,7 +309,18 @@ private fun MainSettings(
     autoTranslate: Boolean,
     onAutoTranslateChange: (Boolean) -> Unit,
     darkTheme: Boolean?,
-    onToggleDarkTheme: (Boolean) -> Unit,
+    onThemeChange: (Boolean?) -> Unit,
+    textModel: String,
+    onTextModelChange: (String) -> Unit,
+    templates: List<PromptTemplate>,
+    onAddTemplate: (String) -> Unit,
+    onDeleteTemplate: (Long) -> Unit,
+    stats: GenerationStats,
+    pendingImport: BackupData?,
+    onExportPick: () -> Unit,
+    onImportPick: () -> Unit,
+    onConfirmImport: () -> Unit,
+    onCancelImport: () -> Unit,
     language: String,
     onLanguageChange: (String) -> Unit,
     update: UpdateUiState,
@@ -260,11 +335,37 @@ private fun MainSettings(
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
-    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
     var showClearMediaDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showTextModelDialog by remember { mutableStateOf(false) }
+    var showAddTemplateDialog by remember { mutableStateOf(false) }
+    var newTemplateText by remember { mutableStateOf("") }
     var showUpdateDialog by remember { mutableStateOf(false) }
+
+    pendingImport?.let { backup ->
+        AlertDialog(
+            onDismissRequest = onCancelImport,
+            title = { Text(stringResource(R.string.backup_confirm_title)) },
+            text = {
+                Text(
+                    text = stringResource(
+                        R.string.backup_confirm_text,
+                        backup.messages.size,
+                        backup.templates.size
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onConfirmImport) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = onCancelImport) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
     val shareTitle = stringResource(R.string.about_share)
     val shareText = stringResource(R.string.about_share_text)
 
@@ -377,13 +478,54 @@ private fun MainSettings(
 
     SectionLabel(stringResource(R.string.section_app))
     SettingsCard {
-        SwitchRow(
-            icon = Icons.Rounded.WbSunny,
-            title = stringResource(R.string.dark_theme_title),
-            subtitle = stringResource(R.string.dark_theme_subtitle),
-            checked = darkTheme ?: systemDark,
-            onCheckedChange = onToggleDarkTheme
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TonalIcon(Icons.Rounded.WbSunny)
+            Column {
+                Text(
+                    text = stringResource(R.string.theme_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = scheme.onSurface
+                )
+                Text(
+                    text = stringResource(
+                        when (darkTheme) {
+                            null -> R.string.theme_system
+                            false -> R.string.theme_light
+                            true -> R.string.theme_dark
+                        }
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = darkTheme == null,
+                onClick = { onThemeChange(null) },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3)
+            ) {
+                Text(stringResource(R.string.theme_system))
+            }
+            SegmentedButton(
+                selected = darkTheme == false,
+                onClick = { onThemeChange(false) },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3)
+            ) {
+                Text(stringResource(R.string.theme_light))
+            }
+            SegmentedButton(
+                selected = darkTheme == true,
+                onClick = { onThemeChange(true) },
+                shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3)
+            ) {
+                Text(stringResource(R.string.theme_dark))
+            }
+        }
         Spacer(modifier = Modifier.height(12.dp))
         HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
         Spacer(modifier = Modifier.height(12.dp))
@@ -451,6 +593,161 @@ private fun MainSettings(
             subtitle = stringResource(R.string.auto_translate_subtitle),
             checked = autoTranslate,
             onCheckedChange = onAutoTranslateChange
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
+        Spacer(modifier = Modifier.height(12.dp))
+        Surface(
+            onClick = { showTextModelDialog = true },
+            color = Color.Transparent,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    TonalIcon(Icons.Rounded.SmartToy)
+                    Column {
+                        Text(
+                            text = stringResource(R.string.text_model_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = scheme.onSurface
+                        )
+                        Text(
+                            text = stringResource(
+                                when (textModel) {
+                                    SettingsRepository.TEXT_MODEL_GPT_20B -> R.string.text_model_gpt20
+                                    SettingsRepository.TEXT_MODEL_LLAMA_70B -> R.string.text_model_llama70
+                                    else -> R.string.text_model_gpt120
+                                }
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = scheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(20.dp))
+
+    SectionLabel(stringResource(R.string.templates_section))
+    SettingsCard {
+        if (templates.isEmpty()) {
+            Text(
+                text = stringResource(R.string.templates_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 4.dp)
+            )
+        } else {
+            templates.forEachIndexed { index, template ->
+                if (index > 0) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = template.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = scheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (template.placeholders.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = stringResource(R.string.templates_placeholders, template.placeholders.size),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = scheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    IconButton(onClick = { onDeleteTemplate(template.id) }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Delete,
+                            contentDescription = stringResource(R.string.action_delete),
+                            tint = scheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        GradientButton(
+            icon = Icons.Rounded.Add,
+            text = stringResource(R.string.templates_add),
+            onClick = {
+                newTemplateText = ""
+                showAddTemplateDialog = true
+            }
+        )
+    }
+
+    Spacer(modifier = Modifier.height(20.dp))
+
+    SectionLabel(stringResource(R.string.stats_section))
+    SettingsCard {
+        StatsRow(
+            icon = Icons.Rounded.Image,
+            title = stringResource(R.string.stats_images),
+            today = stats.imagesToday,
+            week = stats.imagesWeek,
+            total = stats.imagesTotal
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
+        Spacer(modifier = Modifier.height(12.dp))
+        StatsRow(
+            icon = Icons.Rounded.TextFields,
+            title = stringResource(R.string.stats_texts),
+            today = stats.textsToday,
+            week = stats.textsWeek,
+            total = stats.textsTotal
+        )
+    }
+
+    Spacer(modifier = Modifier.height(20.dp))
+
+    SectionLabel(stringResource(R.string.backup_section))
+    SettingsCard {
+        LinkRow(
+            icon = Icons.Rounded.IosShare,
+            title = stringResource(R.string.backup_export),
+            trailingIcon = Icons.Rounded.ChevronRight,
+            onClick = onExportPick
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        LinkRow(
+            icon = Icons.Rounded.Download,
+            title = stringResource(R.string.backup_import),
+            trailingIcon = Icons.Rounded.ChevronRight,
+            onClick = onImportPick
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.backup_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant
         )
     }
 
@@ -649,6 +946,91 @@ private fun MainSettings(
         )
     }
 
+    if (showTextModelDialog) {
+        AlertDialog(
+            onDismissRequest = { showTextModelDialog = false },
+            title = { Text(stringResource(R.string.text_model_title)) },
+            text = {
+                Column {
+                    ModelOption(
+                        title = stringResource(R.string.text_model_gpt120),
+                        subtitle = stringResource(R.string.text_model_gpt120_desc),
+                        selected = textModel == SettingsRepository.TEXT_MODEL_GPT_120B,
+                        onClick = {
+                            showTextModelDialog = false
+                            onTextModelChange(SettingsRepository.TEXT_MODEL_GPT_120B)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ModelOption(
+                        title = stringResource(R.string.text_model_gpt20),
+                        subtitle = stringResource(R.string.text_model_gpt20_desc),
+                        selected = textModel == SettingsRepository.TEXT_MODEL_GPT_20B,
+                        onClick = {
+                            showTextModelDialog = false
+                            onTextModelChange(SettingsRepository.TEXT_MODEL_GPT_20B)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ModelOption(
+                        title = stringResource(R.string.text_model_llama70),
+                        subtitle = stringResource(R.string.text_model_llama70_desc),
+                        selected = textModel == SettingsRepository.TEXT_MODEL_LLAMA_70B,
+                        onClick = {
+                            showTextModelDialog = false
+                            onTextModelChange(SettingsRepository.TEXT_MODEL_LLAMA_70B)
+                        }
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showTextModelDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showAddTemplateDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddTemplateDialog = false },
+            title = { Text(stringResource(R.string.templates_add_title)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = newTemplateText,
+                        onValueChange = { newTemplateText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 3,
+                        placeholder = { Text(stringResource(R.string.templates_add_hint)) },
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.templates_add_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = newTemplateText.isNotBlank(),
+                    onClick = {
+                        onAddTemplate(newTemplateText)
+                        showAddTemplateDialog = false
+                    }
+                ) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddTemplateDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     if (showUpdateDialog) {
         AlertDialog(
             onDismissRequest = { showUpdateDialog = false },
@@ -750,6 +1132,48 @@ private fun installUpdate(context: android.content.Context, file: File) {
 }
 
 @Composable
+private fun ModelOption(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = if (selected) scheme.primary.copy(alpha = 0.10f) else scheme.surfaceContainerHighest,
+        border = if (selected) {
+            BorderStroke(1.5.dp, scheme.primary.copy(alpha = 0.65f))
+        } else {
+            BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.6f))
+        },
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = scheme.onSurface
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                contentDescription = null,
+                tint = if (selected) scheme.primary else scheme.outlineVariant,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun LanguageOption(title: String, selected: Boolean, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Surface(
@@ -780,6 +1204,30 @@ private fun LanguageOption(title: String, selected: Boolean, onClick: () -> Unit
                 contentDescription = null,
                 tint = if (selected) scheme.primary else scheme.outlineVariant,
                 modifier = Modifier.size(22.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatsRow(icon: ImageVector, title: String, today: Int, week: Int, total: Int) {
+    val scheme = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        TonalIcon(icon)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = scheme.onSurface
+            )
+            Text(
+                text = stringResource(R.string.stats_line, today, week, total),
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant
             )
         }
     }

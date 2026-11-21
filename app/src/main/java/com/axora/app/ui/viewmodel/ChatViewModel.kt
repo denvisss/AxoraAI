@@ -11,12 +11,14 @@ import com.axora.app.domain.model.ImageFormat
 import com.axora.app.domain.model.Role
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -35,11 +37,20 @@ class ChatViewModel(
     private val _uiState = MutableStateFlow(ChatUiState(imageFormat = repository.getImageFormat()))
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
+    // Инкремент при каждом успешном завершении генерации — для виброотклика в UI.
+    private val _generationCompleted = MutableStateFlow(0L)
+    val generationCompleted: StateFlow<Long> = _generationCompleted.asStateFlow()
+
     val galleryImages: StateFlow<List<ChatMessage>> = repository.getAllImages()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private var historyJob: Job? = null
     private val generationJobs = mutableMapOf<GenerationType, Job>()
+
+    // Подгружается по странице при прокрутке вверх; Flow-запрос с LIMIT пересдаёт и новые сообщения.
+    private val historyLimit = MutableStateFlow(HISTORY_PAGE)
+    private val _historyHasMore = MutableStateFlow(false)
+    val historyHasMore: StateFlow<Boolean> = _historyHasMore.asStateFlow()
 
     init {
         loadHistory(GenerationType.IMAGE)
@@ -47,16 +58,32 @@ class ChatViewModel(
 
     private fun loadHistory(type: GenerationType) {
         historyJob?.cancel()
+        historyLimit.value = HISTORY_PAGE
         historyJob = viewModelScope.launch {
-            repository.getChatHistory(type).collect { messages ->
+            @OptIn(ExperimentalCoroutinesApi::class)
+            historyLimit.flatMapLatest { limit -> repository.getChatHistory(type, limit) }.collect { messages ->
+                _historyHasMore.value = messages.size >= historyLimit.value
                 _uiState.update { it.copy(messages = messages) }
             }
         }
     }
 
+    fun loadMoreHistory() {
+        if (!_historyHasMore.value || _uiState.value.generatingTypes.isNotEmpty()) return
+        historyLimit.value += HISTORY_PAGE
+    }
+
+    suspend fun searchHistory(query: String): List<ChatMessage> {
+        val sanitized = query.trim()
+        if (sanitized.isEmpty()) return emptyList()
+        return runCatching {
+            repository.searchHistory("\"$sanitized\"")
+        }.getOrElse { repository.searchHistory(sanitized) }
+    }
+
     fun setGenerationType(type: GenerationType) {
         if (type == _uiState.value.selectedType) return
-        _uiState.update { it.copy(selectedType = type, error = null, errorType = null) }
+        _uiState.update { it.copy(selectedType = type, error = null, errorType = null, streamingText = null) }
         loadHistory(type)
     }
 
@@ -112,6 +139,7 @@ class ChatViewModel(
                 produced = produce()
                 repository.insertMessage(produced)
                 repository.autoSaveToGallery(produced)
+                _generationCompleted.value += 1
             } catch (e: CancellationException) {
                 produced?.let { message ->
                     withContext(NonCancellable) { repository.deleteMediaOf(message) }
@@ -132,7 +160,7 @@ class ChatViewModel(
                 }
                 _uiState.update { it.copy(error = message, errorType = type) }
             } finally {
-                _uiState.update { it.copy(generatingTypes = it.generatingTypes - type) }
+                _uiState.update { it.copy(generatingTypes = it.generatingTypes - type, streamingText = null) }
                 generationJobs.remove(type)
             }
         }
@@ -150,7 +178,9 @@ class ChatViewModel(
         textHistory: List<ChatMessage>
     ): ChatMessage {
         if (type == GenerationType.TEXT) {
-            val content = repository.generateText(prompt, textHistory)
+            val content = repository.generateTextStreamed(prompt, textHistory) { partial ->
+                _uiState.update { it.copy(streamingText = partial) }
+            }
             return ChatMessage(
                 role = Role.ASSISTANT,
                 text = content,
@@ -237,6 +267,20 @@ class ChatViewModel(
         if (text.isNotBlank()) sendMessage(text)
     }
 
+    // Изображение, пришедшее через «Поделиться»: попадает в чат как сообщение пользователя.
+    fun importImageFile(file: File) {
+        viewModelScope.launch {
+            repository.insertMessage(
+                ChatMessage(
+                    role = Role.USER,
+                    text = "",
+                    imageUrl = file.absolutePath,
+                    generationType = GenerationType.IMAGE
+                )
+            )
+        }
+    }
+
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }
@@ -283,4 +327,8 @@ class ChatViewModel(
         }
         null
     }.getOrNull()
+
+    companion object {
+        const val HISTORY_PAGE = 50
+    }
 }

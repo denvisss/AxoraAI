@@ -32,11 +32,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
@@ -48,6 +51,7 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -57,35 +61,46 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.axora.app.R
 import com.axora.app.domain.model.ChatMessage
 import com.axora.app.domain.model.GenerationType
+import com.axora.app.domain.model.PromptTemplate
 import com.axora.app.ui.components.*
 import com.axora.app.ui.theme.AxoraGradient
 import com.axora.app.ui.theme.AxoraBlue
 import com.axora.app.ui.theme.AxoraViolet
 import com.axora.app.ui.viewmodel.ChatViewModel
+import com.axora.app.ui.viewmodel.TemplateViewModel
 import com.axora.app.util.SaveImageUtil
 import com.axora.app.util.VoiceInputHelper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
+    templateViewModel: TemplateViewModel,
     onSettingsClick: () -> Unit,
     onGalleryClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val templates by templateViewModel.templates.collectAsState()
     var inputText by rememberSaveable { mutableStateOf("") }
     val context = LocalContext.current
     val listState = rememberLazyListState()
@@ -102,6 +117,13 @@ fun ChatScreen(
     var editImageMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var editImageText by remember { mutableStateOf("") }
     var showClearDialog by remember { mutableStateOf(false) }
+    var showSearchDialog by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
+    var searchDetail by remember { mutableStateOf<ChatMessage?>(null) }
+    var showTemplatesDialog by remember { mutableStateOf(false) }
+    var pendingTemplate by remember { mutableStateOf<PromptTemplate?>(null) }
+    var templateValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var pendingSave by remember { mutableStateOf<ChatMessage?>(null) }
     var viewerIndex by remember { mutableStateOf<Int?>(null) }
 
@@ -184,17 +206,62 @@ fun ChatScreen(
 
     val imageMessages = uiState.messages.filter { it.isImageMessage() }
 
+    val haptic = LocalHapticFeedback.current
+    val generationCompleted by viewModel.generationCompleted.collectAsState()
+    LaunchedEffect(generationCompleted) {
+        if (generationCompleted > 0) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+    }
+
     val lastMessageId = uiState.messages.lastOrNull()?.id
     val bannerVisible = uiState.error != null && uiState.errorType == uiState.selectedType
-    LaunchedEffect(lastMessageId, uiState.isGenerating, uiState.selectedType, bannerVisible) {
-        val count = uiState.messages.size + if (uiState.isGenerating) 1 else 0
+    val streamingVisible = uiState.selectedType == GenerationType.TEXT &&
+        uiState.streamingText != null && uiState.isGenerating
+    LaunchedEffect(lastMessageId, uiState.isGenerating, uiState.selectedType, bannerVisible, uiState.streamingText) {
+        var count = uiState.messages.size
+        if (streamingVisible) count += 1
+        if (uiState.isGenerating) count += 1
         if (count > 0) listState.animateScrollToItem(count - 1)
+    }
+
+    // Пагинация: у верхней границы списка подгружаем ещё страницу.
+    val historyHasMore by viewModel.historyHasMore.collectAsState()
+    var adjustScrollOnGrow by remember { mutableStateOf(false) }
+    var lastSeenCount by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { listState.firstVisibleItemIndex }.collect { index ->
+            if (index <= 4 && historyHasMore && !uiState.isGenerating) {
+                adjustScrollOnGrow = true
+                viewModel.loadMoreHistory()
+            }
+        }
+    }
+    LaunchedEffect(uiState.messages.size) {
+        val previous = lastSeenCount
+        lastSeenCount = uiState.messages.size
+        val added = uiState.messages.size - previous
+        if (adjustScrollOnGrow && added > 1) {
+            listState.scrollToItem(
+                (listState.firstVisibleItemIndex + added).coerceAtMost(uiState.messages.size - 1)
+            )
+        }
+        if (added > 1) adjustScrollOnGrow = false
+    }
+
+    LaunchedEffect(searchQuery) {
+        if (!showSearchDialog) return@LaunchedEffect
+        delay(300)
+        if (searchQuery.length >= 2) {
+            searchResults = viewModel.searchHistory(searchQuery)
+        } else {
+            searchResults = emptyList()
+        }
     }
 
     Scaffold(
         topBar = {
             Column {
                 ChatTopBar(
+                    onSearchClick = { showSearchDialog = true },
                     onExportClick = { exportChat(context, uiState.messages) },
                     onSettingsClick = onSettingsClick,
                     onClearChatClick = { showClearDialog = true },
@@ -281,6 +348,9 @@ fun ChatScreen(
                                 onRegenerate = { viewModel.regenerate(message) }
                             )
                         }
+                        if (streamingVisible) {
+                            item(key = "streaming") { StreamingBubble(text = uiState.streamingText!!) }
+                        }
                         if (uiState.isGenerating) {
                             item { LoadingIndicator(onCancel = { viewModel.cancelGeneration() }) }
                         }
@@ -353,6 +423,7 @@ fun ChatScreen(
                     viewModel.sendMessage(inputText)
                     inputText = ""
                 },
+                onTemplatesClick = { showTemplatesDialog = true },
                 onStartVoice = { startVoiceInput() },
                 onStopVoice = { stopVoiceInput() },
                 isGenerating = uiState.isGenerating,
@@ -412,6 +483,108 @@ fun ChatScreen(
         )
     }
 
+    if (showSearchDialog) {
+        AlertDialog(
+            onDismissRequest = { showSearchDialog = false },
+            title = { Text(stringResource(R.string.search_title)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(stringResource(R.string.search_hint)) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 360.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        when {
+                            searchQuery.length < 2 -> {}
+                            searchResults.isEmpty() -> Text(
+                                text = stringResource(R.string.search_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            else -> searchResults.forEach { message ->
+                                Surface(
+                                    onClick = { searchDetail = message },
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp)) {
+                                        Text(
+                                            text = getGenerationTypeName(message.generationType) +
+                                                " · " + formatDate(message.timestamp),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.height(2.dp))
+                                        Text(
+                                            text = message.textContent ?: message.text,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            maxLines = 3,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSearchDialog = false }) {
+                    Text(stringResource(R.string.close))
+                }
+            }
+        )
+    }
+
+    searchDetail?.let { message ->
+        AlertDialog(
+            onDismissRequest = { searchDetail = null },
+            title = {
+                Text(
+                    text = getGenerationTypeName(message.generationType) + " · " + formatDate(message.timestamp),
+                    style = MaterialTheme.typography.titleMedium
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text(
+                        text = message.textContent ?: message.text,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    copyToClipboard(context, message.textContent ?: message.text)
+                }) { Text(stringResource(R.string.action_copy)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { searchDetail = null }) {
+                    Text(stringResource(R.string.close))
+                }
+            }
+        )
+    }
+
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
@@ -422,6 +595,95 @@ fun ChatScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    if (showTemplatesDialog) {
+        AlertDialog(
+            onDismissRequest = { showTemplatesDialog = false },
+            title = { Text(stringResource(R.string.templates_title)) },
+            text = {
+                if (templates.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.templates_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Column {
+                        templates.forEach { template ->
+                            Surface(
+                                onClick = {
+                                    showTemplatesDialog = false
+                                    if (template.placeholders.isEmpty()) {
+                                        inputText = template.text
+                                    } else {
+                                        templateValues = emptyMap()
+                                        pendingTemplate = template
+                                    }
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = template.text,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp)
+                                )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showTemplatesDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    pendingTemplate?.let { template ->
+        AlertDialog(
+            onDismissRequest = { pendingTemplate = null },
+            title = { Text(stringResource(R.string.templates_fill_title)) },
+            text = {
+                Column {
+                    template.placeholders.forEach { placeholder ->
+                        OutlinedTextField(
+                            value = templateValues[placeholder].orEmpty(),
+                            onValueChange = { templateValues = templateValues + (placeholder to it) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            label = { Text(placeholder) },
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = template.placeholders.all { templateValues[it]?.isNotBlank() == true },
+                    onClick = {
+                        inputText = template.fill(templateValues)
+                        pendingTemplate = null
+                    }
+                ) { Text(stringResource(R.string.save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingTemplate = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         )
     }
@@ -597,6 +859,31 @@ fun copyToClipboard(context: Context, text: String) {
     Toast.makeText(context, context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
 }
 
+private fun formatDate(timestamp: Long): String =
+    SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(timestamp))
+
+@Composable
+private fun StreamingBubble(text: String) {
+    val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 8.dp, bottomEnd = 24.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .clip(shape)
+                .background(scheme.surfaceContainerHigh, shape)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            MarkdownText(markdown = "$text ▍", color = scheme.onSurface)
+        }
+    }
+}
+
 @Composable
 private fun DialogAction(
     icon: ImageVector,
@@ -615,6 +902,7 @@ fun BottomInputBar(
     value: String,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
+    onTemplatesClick: () -> Unit,
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
     isGenerating: Boolean,
@@ -701,6 +989,19 @@ fun BottomInputBar(
                         modifier = Modifier.size(22.dp)
                     )
                 }
+            }
+
+            IconButton(
+                onClick = onTemplatesClick,
+                enabled = !isGenerating,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.BookmarkBorder,
+                    contentDescription = stringResource(R.string.cd_templates),
+                    tint = scheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
+                )
             }
         }
     }

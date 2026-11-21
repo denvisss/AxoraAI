@@ -1,0 +1,134 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 3,
+    "identityHash": "6fb52016f3eeaf59479e1b6e2207f94b",
+    "entities": [
+      {
+        "tableName": "chat_messages",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`role` TEXT NOT NULL, `text` TEXT NOT NULL, `imageUrl` TEXT, `videoUrl` TEXT, `audioUrl` TEXT, `textContent` TEXT, `originalPrompt` TEXT, `translatedPrompt` TEXT, `generationType` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `isError` INTEGER NOT NULL, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "role",
+            "columnName": "role",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "text",
+            "columnName": "text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "imageUrl",
+            "columnName": "imageUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "videoUrl",
+            "columnName": "videoUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "audioUrl",
+            "columnName": "audioUrl",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "textContent",
+            "columnName": "textContent",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "originalPrompt",
+            "columnName": "originalPrompt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "translatedPrompt",
+            "columnName": "translatedPrompt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "generationType",
+            "columnName": "generationType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timestamp",
+            "columnName": "timestamp",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isError",
+            "columnName": "isError",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "chat_messages_fts",
+        "createSql": "CREATE VIRTUAL TABLE IF NOT EXISTS `${TABLE_NAME}` USING FTS4(`text` TEXT NOT NULL, `textContent` TEXT, `originalPrompt` TEXT, content=`chat_messages`)",
+        "fields": [
+          {
+            "fieldPath": "text",
+            "columnName": "text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "textContent",
+            "columnName": "textContent",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "originalPrompt",
+            "columnName": "originalPrompt",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": []
+        },
+        "ftsVersion": "FTS4",
+        "ftsOptions": {
+          "tokenizer": "simple",
+          "tokenizerArgs": [],
+          "contentTable": "chat_messages",
+          "languageIdColumnName": "",
+          "matchInfo": "FTS4",
+          "notIndexedColumns": [],
+          "prefixSizes": [],
+          "preferredOrder": "ASC"
+        },
+        "contentSyncTriggers": [
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_chat_messages_fts_BEFORE_UPDATE BEFORE UPDATE ON `chat_messages` BEGIN DELETE FROM `chat_messages_fts` WHERE `docid`=OLD.`rowid`; END",
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_chat_messages_fts_BEFORE_DELETE BEFORE DELETE ON `chat_messages` BEGIN DELETE FROM `chat_messages_fts` WHERE `docid`=OLD.`rowid`; END",
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_chat_messages_fts_AFTER_UPDATE AFTER UPDATE ON `chat_messages` BEGIN INSERT INTO `chat_messages_fts`(`docid`, `text`, `textContent`, `originalPrompt`) VALUES (NEW.`rowid`, NEW.`text`, NEW.`textContent`, NEW.`originalPrompt`); END",
+          "CREATE TRIGGER IF NOT EXISTS room_fts_content_sync_chat_messages_fts_AFTER_INSERT AFTER INSERT ON `chat_messages` BEGIN INSERT INTO `chat_messages_fts`(`docid`, `text`, `textContent`, `originalPrompt`) VALUES (NEW.`rowid`, NEW.`text`, NEW.`textContent`, NEW.`originalPrompt`); END"
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '6fb52016f3eeaf59479e1b6e2207f94b')"
+    ]
+  }
+}

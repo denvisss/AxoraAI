@@ -8,7 +8,8 @@ data class GitHubRelease(
     @SerializedName("tag_name") val tagName: String,
     val draft: Boolean = false,
     val prerelease: Boolean = false,
-    val assets: List<GitHubAsset> = emptyList()
+    val assets: List<GitHubAsset> = emptyList(),
+    val body: String? = null
 )
 
 data class GitHubAsset(

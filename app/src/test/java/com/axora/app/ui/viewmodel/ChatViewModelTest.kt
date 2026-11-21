@@ -47,7 +47,9 @@ class ChatViewModelTest {
         var lastTextHistory: List<ChatMessage> = emptyList()
         var format = ImageFormat.SQUARE
 
-        override fun getChatHistory(type: GenerationType): Flow<List<ChatMessage>> = history
+        override fun getChatHistory(type: GenerationType, limit: Int): Flow<List<ChatMessage>> = history
+
+        override suspend fun searchHistory(query: String): List<ChatMessage> = emptyList()
 
         override fun getAllImages(): Flow<List<ChatMessage>> = history
 
