@@ -257,6 +257,7 @@
     <string name="error_http_detail">Error %1$d: %2$s</string>
     <string name="error_unknown">Unknown error</string>
     <string name="error_proxy_connect">The proxy rejects requests (HTTP 400). Turn the proxy off in settings or pick another server.</string>
+    <string name="error_flagged">Cloudflare rejected the generation: the prompt or prompt/image combination failed their safety check. Rephrase the prompt or pick a different image.</string>
     <string name="error_unknown_detail">Error: %1$s</string>
     <string name="error_empty_file">The server returned an empty file</string>
     <string name="error_no_image">The service did not return an image. Try again</string>

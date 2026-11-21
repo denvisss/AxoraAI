@@ -298,6 +298,10 @@ class ChatViewModel(
             else strings.get(R.string.error_unknown_detail, detail)
         }
         val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull().orEmpty()
+        // Cloudflare отклоняет промпт/изображение модерацией — объясняем понятным языком.
+        if (body.contains("flagged", ignoreCase = true)) {
+            return strings.get(R.string.error_flagged)
+        }
         return when {
             e.code() == 401 -> strings.get(R.string.error_invalid_key)
             e.code() == 429 -> strings.get(R.string.error_rate_limited)
