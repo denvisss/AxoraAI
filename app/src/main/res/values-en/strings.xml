@@ -186,6 +186,8 @@
     <string name="search_empty">Nothing found</string>
     <string name="cd_search">Search</string>
     <string name="backup_section">Backup</string>
+    <string name="share_chat_title">Share chat</string>
+    <string name="chat_pick_title">Which chat to share?</string>
     <string name="backup_export">Export data</string>
     <string name="backup_import">Import data</string>
     <string name="backup_note">History, templates and settings are included. API keys and media files are not.</string>

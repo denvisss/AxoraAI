@@ -34,7 +34,7 @@ Axora is an Android client for prompt-based media generation: images and text ar
 - **Image viewer.** Full-screen viewing with swiping through all chat images, zoom up to 5× and panning; download and share right from the viewer.
 - **Image gallery.** All generated images in one screen (the photo-library icon on the Image tab); tapping a thumbnail opens the full-screen viewer with save and share.
 - **Working with results.** Save to gallery, share, copy text, auto-save new media (can be disabled), regenerate from the original prompt ("Generate again").
-- **Chat export.** Share the current tab's conversation as plain text via any app — media messages are included as short markers, errors are excluded.
+- **Chat export.** Share a tab's conversation as plain text via any app — media messages are included as short markers, errors are excluded. Find it in Settings → Backup → "Share chat".
 - **Generation control.** Cancel the current generation via a button in the progress indicator; partial files are removed. Offline indicator.
 - **History management.** Per-tab Room storage: edit and delete messages, retry on error, clear a chat, wipe all generated files while keeping the history.
 - **Theming.** Material 3, light / dark / follow-the-system themes with the choice persisted.

@@ -17,10 +17,12 @@ import com.axora.app.data.repository.SettingsRepository
 import com.axora.app.data.repository.TemplateStore
 import com.axora.app.data.repository.UpdateManager
 import com.axora.app.di.NetworkModule
+import com.axora.app.domain.model.ChatMessage
 import com.axora.app.domain.model.GenerationStats
 import com.axora.app.domain.model.GenerationType
 import com.axora.app.domain.model.ImageFormat
 import com.axora.app.domain.model.ProxyConfig
+import com.axora.app.util.ChatExport
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -259,6 +261,30 @@ class SettingsViewModel(
     }
 
     // ===== Резервная копия (без API-ключей и медиафайлов) =====
+
+    fun shareChatExport(type: GenerationType, context: Context, onEmpty: () -> Unit) {
+        viewModelScope.launch {
+            val messages = withContext(Dispatchers.IO) {
+                chatDao.getAllMessagesOnce(type.name).map { entity ->
+                    ChatMessage(
+                        role = if (entity.role == "user") com.axora.app.domain.model.Role.USER else com.axora.app.domain.model.Role.ASSISTANT,
+                        text = entity.text,
+                        imageUrl = entity.imageUrl,
+                        videoUrl = entity.videoUrl,
+                        audioUrl = entity.audioUrl,
+                        textContent = entity.textContent,
+                        originalPrompt = entity.originalPrompt,
+                        translatedPrompt = entity.translatedPrompt,
+                        generationType = GenerationType.valueOf(entity.generationType),
+                        timestamp = entity.timestamp,
+                        isError = entity.isError
+                    )
+                }
+            }
+            val body = ChatExport.buildBody(context, messages)
+            if (body == null) onEmpty() else ChatExport.share(context, body)
+        }
+    }
 
     fun exportBackup(uri: Uri, context: Context, onError: (String) -> Unit, onSuccess: () -> Unit) {
         viewModelScope.launch {

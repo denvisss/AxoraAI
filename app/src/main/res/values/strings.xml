@@ -186,6 +186,8 @@
     <string name="search_empty">Ничего не найдено</string>
     <string name="cd_search">Поиск</string>
     <string name="backup_section">Резервная копия</string>
+    <string name="share_chat_title">Поделиться чатом</string>
+    <string name="chat_pick_title">Какой чат отправить?</string>
     <string name="backup_export">Экспортировать данные</string>
     <string name="backup_import">Импортировать данные</string>
     <string name="backup_note">Переносятся история, шаблоны и настройки. API-ключи и медиафайлы не включаются.</string>

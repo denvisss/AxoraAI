@@ -23,7 +23,6 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material.icons.rounded.IosShare
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.ImageNotSupported
 import androidx.compose.material.icons.rounded.Pause
@@ -86,7 +85,6 @@ fun getGenerationIcon(type: GenerationType) = when (type) {
 fun ChatTopBar(
     onTemplatesClick: () -> Unit,
     onSearchClick: () -> Unit,
-    onExportClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onClearChatClick: () -> Unit,
     onGalleryClick: () -> Unit = {},
@@ -122,13 +120,6 @@ fun ChatTopBar(
                 Icon(
                     imageVector = Icons.Rounded.Search,
                     contentDescription = stringResource(R.string.cd_search),
-                    tint = scheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onExportClick) {
-                Icon(
-                    imageVector = Icons.Rounded.IosShare,
-                    contentDescription = stringResource(R.string.cd_export_chat),
                     tint = scheme.onSurfaceVariant
                 )
             }

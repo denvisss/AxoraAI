@@ -281,7 +281,6 @@ fun ChatScreen(
                 ChatTopBar(
                     onTemplatesClick = { showTemplatesDialog = true },
                     onSearchClick = { showSearchDialog = true },
-                    onExportClick = { exportChat(context, uiState.messages) },
                     onSettingsClick = onSettingsClick,
                     onClearChatClick = { showClearDialog = true },
                     onGalleryClick = onGalleryClick,
@@ -864,38 +863,6 @@ fun shareMedia(context: Context, message: ChatMessage) {
     if (!SaveImageUtil.share(context, file, message.generationType)) {
         Toast.makeText(context, R.string.share_error, Toast.LENGTH_SHORT).show()
     }
-}
-
-fun exportChat(context: Context, messages: List<ChatMessage>) {
-    val visible = messages.filter { !it.isError }
-    if (visible.isEmpty()) {
-        Toast.makeText(context, R.string.export_empty, Toast.LENGTH_SHORT).show()
-        return
-    }
-    val userLabel = context.getString(R.string.export_user_label)
-    val assistantLabel = context.getString(R.string.export_assistant_label)
-    val body = visible.joinToString("\n\n") { message ->
-        val role = if (message.isUser()) userLabel else assistantLabel
-        val content = when {
-            message.hasMedia() -> (message.originalPrompt ?: message.text).let { prompt ->
-                val marker = context.getString(
-                    when {
-                        message.isImageMessage() -> R.string.export_image_marker
-                        message.isVideoMessage() -> R.string.export_video_marker
-                        else -> R.string.export_audio_marker
-                    }
-                )
-                "$marker $prompt"
-            }
-            else -> message.textContent ?: message.text
-        }
-        "$role:\n$content"
-    }
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(Intent.EXTRA_TEXT, body)
-    }
-    context.startActivity(Intent.createChooser(intent, context.getString(R.string.export_chooser)))
 }
 
 fun copyToClipboard(context: Context, text: String) {

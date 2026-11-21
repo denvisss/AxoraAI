@@ -87,8 +87,10 @@ import com.axora.app.data.network.ProxyEntry
 import com.axora.app.data.repository.BackupData
 import com.axora.app.data.repository.SettingsRepository
 import com.axora.app.domain.model.GenerationStats
+import com.axora.app.domain.model.GenerationType
 import com.axora.app.domain.model.ProxyConfig
 import com.axora.app.domain.model.PromptTemplate
+import com.axora.app.ui.components.getGenerationTypeName
 import com.axora.app.ui.theme.AxoraGradient
 import com.axora.app.ui.viewmodel.SettingsViewModel
 import com.axora.app.ui.viewmodel.TemplateViewModel
@@ -287,6 +289,12 @@ fun SettingsScreen(
                             )
                         },
                         onCancelImport = { viewModel.cancelImport() },
+                        onShareChat = { type ->
+                            viewModel.shareChatExport(
+                                type, context,
+                                onEmpty = { Toast.makeText(context, R.string.export_empty, Toast.LENGTH_SHORT).show() }
+                            )
+                        },
                         language = state.language,
                         onLanguageChange = onLanguageChange,
                         update = state.update,
@@ -327,6 +335,7 @@ private fun MainSettings(
     onImportPick: () -> Unit,
     onConfirmImport: () -> Unit,
     onCancelImport: () -> Unit,
+    onShareChat: (GenerationType) -> Unit,
     language: String,
     onLanguageChange: (String) -> Unit,
     update: UpdateUiState,
@@ -348,6 +357,7 @@ private fun MainSettings(
     var showTextModelDialog by remember { mutableStateOf(false) }
     var showAddTemplateDialog by remember { mutableStateOf(false) }
     var newTemplateText by remember { mutableStateOf("") }
+    var showShareChatDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
 
     pendingImport?.let { backup ->
@@ -786,6 +796,13 @@ private fun MainSettings(
     SettingsCard {
         LinkRow(
             icon = Icons.Rounded.IosShare,
+            title = stringResource(R.string.share_chat_title),
+            trailingIcon = Icons.Rounded.ChevronRight,
+            onClick = { showShareChatDialog = true }
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        LinkRow(
+            icon = Icons.Rounded.IosShare,
             title = stringResource(R.string.backup_export),
             trailingIcon = Icons.Rounded.ChevronRight,
             onClick = onExportPick
@@ -1040,6 +1057,34 @@ private fun MainSettings(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showTextModelDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showShareChatDialog) {
+        AlertDialog(
+            onDismissRequest = { showShareChatDialog = false },
+            title = { Text(stringResource(R.string.chat_pick_title)) },
+            text = {
+                Column {
+                    GenerationType.entries.forEach { type ->
+                        LanguageOption(
+                            title = getGenerationTypeName(type),
+                            selected = false,
+                            onClick = {
+                                showShareChatDialog = false
+                                onShareChat(type)
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showShareChatDialog = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
