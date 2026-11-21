@@ -113,7 +113,9 @@ object NetworkModule {
                         try {
                             val body = resp.body ?: throw IOException("Empty response body")
                             if (!resp.isSuccessful) {
-                                throw IOException(extractGroqError(body.string()) ?: "HTTP ${resp.code}")
+                                // Тело сохраняем и при неудачном разборе — иначе причина 400 теряется.
+                                val raw = body.string()
+                                throw IOException(extractGroqError(raw) ?: "HTTP ${resp.code}: ${raw.take(300)}")
                             }
                             val full = StringBuilder()
                             val source = body.source()
