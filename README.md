@@ -23,12 +23,15 @@ Axora is an Android client for prompt-based media generation: images and text ar
 ## ✨ Features
 
 - **Separate chats per generation type.** Tabs for Image, Text, Video and Audio, each with its own history stream. Video and Audio are marked "Soon" and unavailable until release.
-- **Image generation.** FLUX.2 Klein 4B on Cloudflare Workers AI (free tier), up to 1152 px on the long side. Aspect ratios 1:1, 3:4 and 4:3. Instruction-based editing of an existing image (image-to-image) — the source is downscaled on-device and passed as a reference.
+- **Image generation.** FLUX.2 Klein 4B on Cloudflare Workers AI (free tier), resolutions up to 1536×864. Aspect ratios 1:1, 3:4, 4:3 and 16:9. Instruction-based editing of an existing image (image-to-image) — the source is downscaled on-device and passed as a reference.
 - **Text generation.** `openai/gpt-oss-120b` on Groq (free tier) with the context of the tab's recent messages.
+- **Starter prompt ideas.** The empty screen shows ready-made example prompts for the active tab, tinted in its accent color; one tap fills the input.
 - **Voice input.** Russian, hold-to-talk semantics — hold to speak, release to send (`SpeechRecognizer`); with TalkBack the microphone acts as a toggle.
 - **Automatic prompt translation.** Cyrillic prompts are translated to English via Groq before media generation (can be disabled).
 - **Image viewer.** Full-screen viewing with swiping through all chat images, zoom up to 5× and panning; download and share right from the viewer.
+- **Image gallery.** All generated images in one screen (the photo-library icon on the Image tab); tapping a thumbnail opens the full-screen viewer with save and share.
 - **Working with results.** Save to gallery, share, copy text, auto-save new media (can be disabled), regenerate from the original prompt ("Generate again").
+- **Chat export.** Share the current tab's conversation as plain text via any app — media messages are included as short markers, errors are excluded.
 - **Generation control.** Cancel the current generation via a button in the progress indicator; partial files are removed. Offline indicator.
 - **History management.** Per-tab Room storage: edit and delete messages, retry on error, clear a chat, wipe all generated files while keeping the history.
 - **Theming.** Material 3, light and dark themes with the choice persisted.
@@ -112,8 +115,9 @@ app/src/main/java/com/axora/app/
 ├── di/NetworkModule.kt        # OkHttp/Retrofit, Authorization redaction
 ├── domain/model/              # ChatMessage, ChatUiState, GenerationType, ImageFormat
 ├── ui/
-│   ├── MainActivity.kt        # theme, chat/settings navigation
-│   ├── ChatScreen.kt          # chat, input, voice, viewer, offline banner
+│   ├── MainActivity.kt        # theme, chat/settings/gallery navigation
+│   ├── ChatScreen.kt          # chat, input, voice, viewer, offline banner, export
+│   ├── GalleryScreen.kt       # grid of all generated images
 │   ├── components/            # ChatComponents (tabs, bubbles, players), ImageViewer (zoom/pager)
 │   ├── settings/SettingsScreen.kt    # settings and the "Connect services" submenu
 │   ├── theme/                 # Color.kt, Theme.kt (light/dark)
