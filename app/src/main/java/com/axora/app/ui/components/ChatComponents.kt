@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -70,6 +71,13 @@ fun getGenerationTypeName(type: GenerationType): String = stringResource(
         GenerationType.TEXT -> R.string.type_text
     }
 )
+
+// Ширина бабла: доля от ширины экрана с потолком — на планшетах не разлетается, в альбомной не душит.
+@Composable
+fun adaptiveBubbleWidth(): androidx.compose.ui.unit.Dp {
+    val config = LocalConfiguration.current
+    return (config.screenWidthDp * 0.85f).dp.coerceAtMost(480.dp)
+}
 
 fun getGenerationIcon(type: GenerationType) = when (type) {
     GenerationType.IMAGE -> Icons.Rounded.Image
@@ -284,7 +292,7 @@ fun MessageBubble(
         if (message.text.isNotEmpty()) {
             Box(
                 modifier = Modifier
-                    .widthIn(max = 300.dp)
+                    .widthIn(max = adaptiveBubbleWidth())
                     .clip(bubbleShape)
                     .background(bubbleColor, bubbleShape)
                     .clickable { onClick() }

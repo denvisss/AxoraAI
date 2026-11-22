@@ -128,7 +128,7 @@ fun GalleryScreen(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
+                columns = GridCells.Adaptive(110.dp),
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding),

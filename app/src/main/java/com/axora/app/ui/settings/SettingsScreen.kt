@@ -229,21 +229,26 @@ fun SettingsScreen(
         },
         containerColor = scheme.background
     ) { paddingValues ->
-        AnimatedContent(
-            targetState = level,
-            transitionSpec = {
-                (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 6 })
-                    .togetherWith(fadeOut(tween(160)) + slideOutHorizontally(tween(160)) { -it / 6 })
-            },
-            label = "settingsLevel"
-        ) { currentLevel ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp)
-            ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            AnimatedContent(
+                targetState = level,
+                modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth(),
+                transitionSpec = {
+                    (fadeIn(tween(220)) + slideInHorizontally(tween(220)) { it / 6 })
+                        .togetherWith(fadeOut(tween(160)) + slideOutHorizontally(tween(160)) { -it / 6 })
+                },
+                label = "settingsLevel"
+            ) { currentLevel ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(paddingValues)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp)
+                ) {
                 Spacer(modifier = Modifier.height(8.dp))
                 when (currentLevel) {
                     SettingsLevel.Connection -> ConnectionSettings(
@@ -311,6 +316,7 @@ fun SettingsScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(32.dp))
+                }
             }
         }
     }

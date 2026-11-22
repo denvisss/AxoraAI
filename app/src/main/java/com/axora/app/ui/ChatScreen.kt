@@ -301,47 +301,62 @@ fun ChatScreen(
         },
         containerColor = scheme.background
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            horizontalAlignment = Alignment.CenterHorizontally
+            contentAlignment = Alignment.TopCenter
         ) {
-            Box(
+            Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxHeight()
+                    .widthIn(max = 840.dp)
+                    .fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                if (uiState.messages.isEmpty() && !uiState.isGenerating) {
-                    val examples = when (uiState.selectedType) {
-                        GenerationType.IMAGE -> listOf(
-                            stringResource(R.string.example_image_1),
-                            stringResource(R.string.example_image_2),
-                            stringResource(R.string.example_image_3)
-                        )
-                        GenerationType.TEXT -> listOf(
-                            stringResource(R.string.example_text_1),
-                            stringResource(R.string.example_text_2),
-                            stringResource(R.string.example_text_3)
-                        )
-                        else -> emptyList()
-                    }
-                    EmptyChatPlaceholder(
-                        text = stringResource(
-                            when (uiState.selectedType) {
-                                GenerationType.IMAGE -> R.string.empty_image
-                                GenerationType.VIDEO -> R.string.empty_video
-                                GenerationType.AUDIO -> R.string.empty_audio
-                                GenerationType.TEXT -> R.string.empty_text
-                            }
-                        ),
-                        type = uiState.selectedType,
-                        examples = examples,
-                        onExampleClick = { inputText = it }
-                    )
-                } else {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (uiState.messages.isEmpty() && !uiState.isGenerating) {
+                        val examples = when (uiState.selectedType) {
+                            GenerationType.IMAGE -> listOf(
+                                stringResource(R.string.example_image_1),
+                                stringResource(R.string.example_image_2),
+                                stringResource(R.string.example_image_3)
+                            )
+                            GenerationType.TEXT -> listOf(
+                                stringResource(R.string.example_text_1),
+                                stringResource(R.string.example_text_2),
+                                stringResource(R.string.example_text_3)
+                            )
+                            else -> emptyList()
+                        }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.Center,
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            EmptyChatPlaceholder(
+                                text = stringResource(
+                                    when (uiState.selectedType) {
+                                        GenerationType.IMAGE -> R.string.empty_image
+                                        GenerationType.VIDEO -> R.string.empty_video
+                                        GenerationType.AUDIO -> R.string.empty_audio
+                                        GenerationType.TEXT -> R.string.empty_text
+                                    }
+                                ),
+                                type = uiState.selectedType,
+                                examples = examples,
+                                onExampleClick = { inputText = it }
+                            )
+                        }
+                    } else {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
@@ -452,6 +467,7 @@ fun ChatScreen(
                 isGenerating = uiState.isGenerating,
                 isListening = isListening
             )
+        }
         }
     }
 
@@ -886,7 +902,7 @@ private fun StreamingBubble(text: String) {
     ) {
         Box(
             modifier = Modifier
-                .widthIn(max = 300.dp)
+                .widthIn(max = adaptiveBubbleWidth())
                 .clip(shape)
                 .background(scheme.surfaceContainerHigh, shape)
                 .padding(horizontal = 16.dp, vertical = 12.dp)
