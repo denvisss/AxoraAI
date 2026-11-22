@@ -18,11 +18,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AudioFile
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BookmarkBorder
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.ImageNotSupported
 import androidx.compose.material.icons.rounded.Pause
@@ -49,6 +51,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil3.compose.rememberAsyncImagePainter
@@ -375,7 +378,7 @@ fun MessageBubble(
                         )
                     }
                 }
-                if (message.originalPrompt != null) {
+                if (message.originalPrompt != null || (!isUser && message.generationType == GenerationType.TEXT)) {
                     IconButton(
                         onClick = onRegenerate,
                         modifier = Modifier.size(48.dp)
@@ -636,24 +639,89 @@ fun OfflineBanner() {
     }
 }
 
+// Единый выпадающий селектор над полем ввода: подпись-категория одним словом + текущее значение.
+// Используется для формата, модели картинок и текстовой модели — все в одном ряду над вводом.
 @Composable
-fun FormatChips(
-    selected: ImageFormat,
-    onSelect: (ImageFormat) -> Unit
+fun PickerChip(
+    label: String,
+    value: String,
+    items: List<PickerItem>,
+    selectedId: String,
+    onSelect: (PickerItem) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        ImageFormat.entries.forEach { format ->
-            FilterChip(
-                selected = selected == format,
-                onClick = { onSelect(format) },
-                label = { Text(format.label, style = MaterialTheme.typography.labelMedium) },
-                shape = RoundedCornerShape(12.dp)
-            )
+    val scheme = MaterialTheme.colorScheme
+    val accent = generationTypeColor(GenerationType.IMAGE)
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        FilterChip(
+            selected = true,
+            onClick = { expanded = true },
+            label = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "$label ",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = scheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = value,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            },
+            shape = RoundedCornerShape(12.dp),
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            items.forEach { item ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(
+                                text = item.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (item.id == selectedId) FontWeight.SemiBold else FontWeight.Medium
+                            )
+                            if (item.subtitle.isNotBlank()) {
+                                Text(
+                                    text = item.subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = scheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
+                    trailingIcon = {
+                        if (item.id == selectedId) {
+                            Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = accent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelect(item)
+                    }
+                )
+            }
         }
     }
 }

@@ -262,7 +262,12 @@ class SettingsViewModel(
 
     // ===== Резервная копия (без API-ключей и медиафайлов) =====
 
-    fun shareChatExport(type: GenerationType, context: Context, onEmpty: () -> Unit) {
+    fun shareChatExportAs(
+        type: GenerationType,
+        format: ChatExportFormat,
+        context: Context,
+        onEmpty: () -> Unit
+    ) {
         viewModelScope.launch {
             val messages = withContext(Dispatchers.IO) {
                 chatDao.getAllMessagesOnce(type.name).map { entity ->
@@ -281,8 +286,25 @@ class SettingsViewModel(
                     )
                 }
             }
-            val body = ChatExport.buildBody(context, messages)
-            if (body == null) onEmpty() else ChatExport.share(context, body)
+            withContext(Dispatchers.IO) {
+                when (format) {
+                    ChatExportFormat.TEXT -> {
+                        val body = ChatExport.buildBody(context, messages)
+                        if (body == null) withContext(Dispatchers.Main) { onEmpty() }
+                        else ChatExport.share(context, body)
+                    }
+                    ChatExportFormat.MARKDOWN -> {
+                        val body = ChatExport.buildMarkdown(context, messages)
+                        if (body == null) withContext(Dispatchers.Main) { onEmpty() }
+                        else ChatExport.shareMarkdown(context, body)
+                    }
+                    ChatExportFormat.PDF -> {
+                        val file = ChatExport.buildPdf(context, messages)
+                        if (file == null) withContext(Dispatchers.Main) { onEmpty() }
+                        else ChatExport.sharePdf(context, file)
+                    }
+                }
+            }
         }
     }
 
@@ -344,6 +366,7 @@ class SettingsViewModel(
                     settings.setAutoTranslateEnabled(s.autoTranslate)
                     ImageFormat.entries.firstOrNull { it.name == s.imageFormat }
                         ?.let { settings.setImageFormat(it) }
+                    if (s.imageModel.isNotBlank()) settings.setImageModel(s.imageModel)
                     settings.setProxy(s.proxy)
                     NetworkModule.proxyConfig.value = s.proxy
                 }
@@ -372,6 +395,7 @@ class SettingsViewModel(
                 autoSave = settings.isAutoSaveEnabled(),
                 autoTranslate = settings.isAutoTranslateEnabled(),
                 imageFormat = settings.getImageFormat().name,
+                imageModel = settings.getImageModel(),
                 proxy = settings.getProxy()
             ),
             messages = messages.map { entity ->

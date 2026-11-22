@@ -3,6 +3,7 @@ package com.axora.app.di
 import com.axora.app.BuildConfig
 import com.axora.app.data.network.CloudflareApiService
 import com.axora.app.data.network.GitHubApiService
+import com.axora.app.data.network.ModelCatalogClient
 import com.axora.app.data.network.ProxyListClient
 import com.axora.app.data.network.TextApiService
 import com.axora.app.data.network.TranslationClient
@@ -192,6 +193,8 @@ object NetworkModule {
     val textApiService: TextApiService by lazy { groqRetrofit.create(TextApiService::class.java) }
 
     val translationClient: TranslationClient by lazy { TranslationClient(baseClient, gson) }
+
+    val modelCatalogClient: ModelCatalogClient by lazy { ModelCatalogClient(baseClient, gson) }
 
     val gitHubApiService: GitHubApiService by lazy {
         gitHubRetrofit.create(GitHubApiService::class.java)

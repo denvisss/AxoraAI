@@ -8,7 +8,9 @@ import com.axora.app.domain.model.ChatMessage
 import com.axora.app.domain.model.ChatUiState
 import com.axora.app.domain.model.GenerationType
 import com.axora.app.domain.model.ImageFormat
+import com.axora.app.domain.model.ImageModel
 import com.axora.app.domain.model.Role
+import com.axora.app.domain.model.TextModel
 import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,7 +36,25 @@ class ChatViewModel(
     private val strings: StringResolver
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ChatUiState(imageFormat = repository.getImageFormat()))
+    // Живой каталог моделей картинок: null, пока запрос к API не завершён (успешно или нет).
+    private val _imageModels = MutableStateFlow<List<ImageModel>?>(null)
+
+    init {
+        viewModelScope.launch {
+            _imageModels.value = repository.fetchImageModels()
+        }
+    }
+
+    /** Модели для селектора: живой список с API, при ошибке — статический каталог. */
+    fun availableImageModels(): List<ImageModel> = _imageModels.value ?: ImageModel.catalog
+
+    private val _uiState = MutableStateFlow(
+        ChatUiState(
+            imageFormat = repository.getImageFormat(),
+            imageModel = repository.getImageModel(),
+            textModel = repository.getTextModel()
+        )
+    )
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     // Инкремент при каждом успешном завершении генерации — для виброотклика в UI.
@@ -87,6 +107,18 @@ class ChatViewModel(
         loadHistory(type)
     }
 
+    fun setTextModel(modelId: String) {
+        if (modelId == _uiState.value.textModel) return
+        _uiState.update { it.copy(textModel = modelId) }
+        repository.setTextModel(modelId)
+    }
+
+    fun setImageModel(model: ImageModel) {
+        if (model.id == _uiState.value.imageModel) return
+        _uiState.update { it.copy(imageModel = model.id) }
+        repository.setImageModel(model.id)
+    }
+
     fun setImageFormat(format: ImageFormat) {
         if (format == _uiState.value.imageFormat) return
         _uiState.update { it.copy(imageFormat = format) }
@@ -97,15 +129,23 @@ class ChatViewModel(
         val trimmed = prompt.trim()
         if (trimmed.isEmpty() || type in _uiState.value.generatingTypes) return
         val textHistory = textHistorySnapshot()
+        val attachment = pendingTextAttachment
+        pendingTextAttachment = null
         startGeneration(
             trimmed,
             type,
             before = {
                 repository.insertMessage(
-                    ChatMessage(role = Role.USER, text = trimmed, originalPrompt = trimmed, generationType = type)
+                    ChatMessage(
+                        role = Role.USER,
+                        text = trimmed,
+                        imageUrl = attachment?.absolutePath,
+                        originalPrompt = trimmed,
+                        generationType = type
+                    )
                 )
             },
-            produce = { generate(trimmed, type, textHistory) }
+            produce = { generate(trimmed, type, textHistory, attachment) }
         )
     }
 
@@ -114,7 +154,8 @@ class ChatViewModel(
         val type = message.generationType
         if (type in _uiState.value.generatingTypes) return
         val textHistory = textHistorySnapshot()
-        startGeneration(prompt, type, before = {}, produce = { generate(prompt, type, textHistory) })
+        val attachment = message.imageUrl?.let { File(it) }
+        startGeneration(prompt, type, before = {}, produce = { generate(prompt, type, textHistory, attachment) })
     }
 
     fun cancelGeneration(type: GenerationType = _uiState.value.selectedType) {
@@ -175,12 +216,16 @@ class ChatViewModel(
     private suspend fun generate(
         prompt: String,
         type: GenerationType,
-        textHistory: List<ChatMessage>
+        textHistory: List<ChatMessage>,
+        attachedImage: File? = null
     ): ChatMessage {
         if (type == GenerationType.TEXT) {
-            val content = repository.generateTextStreamed(prompt, textHistory) { partial ->
-                _uiState.update { it.copy(streamingText = partial) }
-            }
+            val content = repository.generateTextStreamed(
+                prompt,
+                textHistory,
+                onDelta = { partial -> _uiState.update { it.copy(streamingText = partial) } },
+                attachedImage = attachedImage
+            )
             return ChatMessage(
                 role = Role.ASSISTANT,
                 text = content,
@@ -190,7 +235,7 @@ class ChatViewModel(
             )
         }
         val translated = repository.translateToEnglish(prompt)
-        val path = repository.generateContent(translated, type).absolutePath
+        val path = repository.generateContent(translated, type, _uiState.value.imageModel).absolutePath
         return ChatMessage(
             role = Role.ASSISTANT,
             text = strings.get(
@@ -226,7 +271,7 @@ class ChatViewModel(
             insertErrorMessage = false
         ) {
             val translated = repository.translateToEnglish(trimmed)
-            val edited = repository.editImage(File(sourcePath), translated)
+            val edited = repository.editImage(File(sourcePath), translated, _uiState.value.imageModel)
             ChatMessage(
                 role = Role.ASSISTANT,
                 text = strings.get(R.string.image_edited),
@@ -251,6 +296,17 @@ class ChatViewModel(
         )
     }
 
+    // Вложение для следующего текстового промпта (vision). Устанавливается из ChatScreen.
+    var pendingTextAttachment: File? = null
+
+    fun attachImageForText(file: File) {
+        pendingTextAttachment = file
+    }
+
+    fun clearPendingTextAttachment() {
+        pendingTextAttachment = null
+    }
+
     fun editMessage(messageId: Long, newText: String) {
         viewModelScope.launch { repository.updateMessage(messageId, newText, newText) }
     }
@@ -268,14 +324,14 @@ class ChatViewModel(
     }
 
     // Изображение, пришедшее через «Поделиться»: попадает в чат как сообщение пользователя.
-    fun importImageFile(file: File) {
+    fun importImageFile(file: File, type: GenerationType = GenerationType.IMAGE) {
         viewModelScope.launch {
             repository.insertMessage(
                 ChatMessage(
                     role = Role.USER,
                     text = "",
                     imageUrl = file.absolutePath,
-                    generationType = GenerationType.IMAGE
+                    generationType = type
                 )
             )
         }

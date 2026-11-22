@@ -7,6 +7,7 @@ import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.axora.app.domain.model.ImageFormat
+import com.axora.app.domain.model.ImageModel
 import com.axora.app.domain.model.ProxyConfig
 import java.util.Locale
 
@@ -95,10 +96,17 @@ class SettingsRepository(private val context: Context) {
         appPrefs.edit { putString(KEY_TEXT_MODEL, model) }
     }
 
+    fun getImageModel(): String =
+        appPrefs.getString(KEY_IMAGE_MODEL, null)?.takeIf { it.isNotBlank() } ?: ImageModel.DEFAULT.id
+
+    fun setImageModel(model: String) {
+        appPrefs.edit { putString(KEY_IMAGE_MODEL, model) }
+    }
+
     fun getImageFormat(): ImageFormat =
         appPrefs.getString(KEY_IMAGE_FORMAT, null)
             ?.let { runCatching { ImageFormat.valueOf(it) }.getOrNull() }
-            ?: ImageFormat.SQUARE
+            ?: ImageFormat.WIDE
 
     fun setImageFormat(format: ImageFormat) {
         appPrefs.edit { putString(KEY_IMAGE_FORMAT, format.name) }
@@ -185,6 +193,7 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_PROXY_HOST = "proxy_host"
         private const val KEY_PROXY_PORT = "proxy_port"
         private const val KEY_TEXT_MODEL = "groq_text_model"
+        private const val KEY_IMAGE_MODEL = "cf_image_model"
 
         const val TEXT_MODEL_GPT_120B = "openai/gpt-oss-120b"
         const val TEXT_MODEL_GPT_20B = "openai/gpt-oss-20b"

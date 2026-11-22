@@ -19,6 +19,7 @@ data class BackupSettings(
     val autoSave: Boolean = false,
     val autoTranslate: Boolean = true,
     val imageFormat: String = "SQUARE",
+    val imageModel: String = "",
     val proxy: ProxyConfig? = null
 )
 

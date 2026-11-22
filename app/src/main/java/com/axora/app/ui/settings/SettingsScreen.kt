@@ -1,7 +1,6 @@
 package com.axora.app.ui.settings
 
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -58,7 +57,6 @@ import androidx.compose.material.icons.rounded.SystemUpdateAlt
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.WarningAmber
-import androidx.compose.material.icons.rounded.WbSunny
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -92,6 +90,7 @@ import com.axora.app.domain.model.ProxyConfig
 import com.axora.app.domain.model.PromptTemplate
 import com.axora.app.ui.components.getGenerationTypeName
 import com.axora.app.ui.theme.AxoraGradient
+import com.axora.app.ui.viewmodel.ChatExportFormat
 import com.axora.app.ui.viewmodel.SettingsViewModel
 import com.axora.app.ui.viewmodel.TemplateViewModel
 import com.axora.app.ui.viewmodel.UpdateStatus
@@ -186,6 +185,19 @@ fun SettingsScreen(
         )
     } }
     var level by rememberSaveable { mutableStateOf(SettingsLevel.Main) }
+    var pendingShareChatType by remember { mutableStateOf<GenerationType?>(null) }
+    var showShareFormatDialog by remember { mutableStateOf(false) }
+
+    fun shareFormat(format: ChatExportFormat) {
+        val type = pendingShareChatType
+        showShareFormatDialog = false
+        pendingShareChatType = null
+        if (type == null) return
+        viewModel.shareChatExportAs(
+            type, format, context,
+            onEmpty = { Toast.makeText(context, R.string.export_empty, Toast.LENGTH_SHORT).show() }
+        )
+    }
     val scheme = MaterialTheme.colorScheme
 
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -273,8 +285,6 @@ fun SettingsScreen(
                         onAutoTranslateChange = viewModel::setAutoTranslate,
                         darkTheme = state.darkTheme,
                         onThemeChange = viewModel::setDarkTheme,
-                        textModel = state.textModel,
-                        onTextModelChange = viewModel::setTextModel,
                         templates = templates,
                         onAddTemplate = templateViewModel::addTemplate,
                         onDeleteTemplate = templateViewModel::deleteTemplate,
@@ -295,10 +305,8 @@ fun SettingsScreen(
                         },
                         onCancelImport = { viewModel.cancelImport() },
                         onShareChat = { type ->
-                            viewModel.shareChatExport(
-                                type, context,
-                                onEmpty = { Toast.makeText(context, R.string.export_empty, Toast.LENGTH_SHORT).show() }
-                            )
+                            pendingShareChatType = type
+                            showShareFormatDialog = true
                         },
                         language = state.language,
                         onLanguageChange = onLanguageChange,
@@ -320,6 +328,49 @@ fun SettingsScreen(
             }
         }
     }
+
+    if (showShareFormatDialog) {
+        val type = pendingShareChatType
+        AlertDialog(
+            onDismissRequest = { showShareFormatDialog = false; pendingShareChatType = null },
+            title = {
+                Text(
+                    text = if (type != null) {
+                        stringResource(R.string.export_format_title, getGenerationTypeName(type))
+                    } else {
+                        stringResource(R.string.export_format_title_plain)
+                    }
+                )
+            },
+            text = {
+                Column {
+                    LanguageOption(
+                        title = stringResource(R.string.export_format_text),
+                        selected = false,
+                        onClick = { shareFormat(ChatExportFormat.TEXT) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LanguageOption(
+                        title = stringResource(R.string.export_format_markdown),
+                        selected = false,
+                        onClick = { shareFormat(ChatExportFormat.MARKDOWN) }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LanguageOption(
+                        title = stringResource(R.string.export_format_pdf),
+                        selected = false,
+                        onClick = { shareFormat(ChatExportFormat.PDF) }
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showShareFormatDialog = false; pendingShareChatType = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -330,8 +381,6 @@ private fun MainSettings(
     onAutoTranslateChange: (Boolean) -> Unit,
     darkTheme: Boolean?,
     onThemeChange: (Boolean?) -> Unit,
-    textModel: String,
-    onTextModelChange: (String) -> Unit,
     templates: List<PromptTemplate>,
     onAddTemplate: (String) -> Unit,
     onDeleteTemplate: (Long) -> Unit,
@@ -360,7 +409,6 @@ private fun MainSettings(
     var showClearMediaDialog by remember { mutableStateOf(false) }
     var themeMenuExpanded by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
-    var showTextModelDialog by remember { mutableStateOf(false) }
     var showAddTemplateDialog by remember { mutableStateOf(false) }
     var newTemplateText by remember { mutableStateOf("") }
     var showShareChatDialog by remember { mutableStateOf(false) }
@@ -664,51 +712,6 @@ private fun MainSettings(
             checked = autoTranslate,
             onCheckedChange = onAutoTranslateChange
         )
-        Spacer(modifier = Modifier.height(12.dp))
-        HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
-        Spacer(modifier = Modifier.height(12.dp))
-        Surface(
-            onClick = { showTextModelDialog = true },
-            color = Color.Transparent,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    TonalIcon(Icons.Rounded.SmartToy)
-                    Column {
-                        Text(
-                            text = stringResource(R.string.text_model_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = scheme.onSurface
-                        )
-                        Text(
-                            text = stringResource(
-                                when (textModel) {
-                                    SettingsRepository.TEXT_MODEL_GPT_20B -> R.string.text_model_gpt20
-                                    SettingsRepository.TEXT_MODEL_LLAMA_70B -> R.string.text_model_llama70
-                                    else -> R.string.text_model_gpt120
-                                }
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = scheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = scheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
     }
 
     Spacer(modifier = Modifier.height(20.dp))
@@ -1023,52 +1026,6 @@ private fun MainSettings(
         )
     }
 
-    if (showTextModelDialog) {
-        AlertDialog(
-            onDismissRequest = { showTextModelDialog = false },
-            title = { Text(stringResource(R.string.text_model_title)) },
-            text = {
-                Column {
-                    ModelOption(
-                        title = stringResource(R.string.text_model_gpt120),
-                        subtitle = stringResource(R.string.text_model_gpt120_desc),
-                        selected = textModel == SettingsRepository.TEXT_MODEL_GPT_120B,
-                        onClick = {
-                            showTextModelDialog = false
-                            onTextModelChange(SettingsRepository.TEXT_MODEL_GPT_120B)
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ModelOption(
-                        title = stringResource(R.string.text_model_gpt20),
-                        subtitle = stringResource(R.string.text_model_gpt20_desc),
-                        selected = textModel == SettingsRepository.TEXT_MODEL_GPT_20B,
-                        onClick = {
-                            showTextModelDialog = false
-                            onTextModelChange(SettingsRepository.TEXT_MODEL_GPT_20B)
-                        }
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    ModelOption(
-                        title = stringResource(R.string.text_model_llama70),
-                        subtitle = stringResource(R.string.text_model_llama70_desc),
-                        selected = textModel == SettingsRepository.TEXT_MODEL_LLAMA_70B,
-                        onClick = {
-                            showTextModelDialog = false
-                            onTextModelChange(SettingsRepository.TEXT_MODEL_LLAMA_70B)
-                        }
-                    )
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showTextModelDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
-
     if (showShareChatDialog) {
         AlertDialog(
             onDismissRequest = { showShareChatDialog = false },
@@ -1237,7 +1194,7 @@ private fun installUpdate(context: android.content.Context, file: File) {
 }
 
 @Composable
-private fun ModelOption(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+private fun ModelRow(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Surface(
         onClick = onClick,
@@ -2265,14 +2222,14 @@ private fun SettingsField(
     placeholder: String,
     hideText: Boolean,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier.fillMaxWidth(),
+    modifier: Modifier = Modifier,
     keyboardType: KeyboardType = KeyboardType.Text
 ) {
     val scheme = MaterialTheme.colorScheme
     OutlinedTextField(
         value = value,
+        modifier = modifier.fillMaxWidth(),
         onValueChange = onValueChange,
-        modifier = modifier,
         label = { Text(label) },
         placeholder = {
             Text(

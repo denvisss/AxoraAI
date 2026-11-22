@@ -11,15 +11,18 @@ import androidx.core.content.ContextCompat
 import com.axora.app.R
 import com.axora.app.data.local.dao.ChatDao
 import com.axora.app.data.local.entity.ChatMessageEntity
+import com.axora.app.data.network.ImageUrl
 import com.axora.app.data.network.ChatMessageRequest
 import com.axora.app.data.network.CloudflareApiService
 import com.axora.app.data.network.Message
+import com.axora.app.data.network.MessagePart
 import com.axora.app.data.network.TextApiService
 import com.axora.app.data.network.TranslationClient
 import com.axora.app.di.NetworkModule
 import com.axora.app.domain.model.ChatMessage
 import com.axora.app.domain.model.GenerationType
 import com.axora.app.domain.model.ImageFormat
+import com.axora.app.domain.model.ImageModel
 import com.axora.app.domain.model.Role
 import com.axora.app.util.ImageSpec
 import com.axora.app.util.SaveImageUtil
@@ -97,14 +100,39 @@ class DefaultChatRepository(
 
     override fun setImageFormat(format: ImageFormat) = settings.setImageFormat(format)
 
-    override suspend fun generateContent(prompt: String, type: GenerationType): File = when (type) {
-        GenerationType.IMAGE -> generateImage(prompt)
+    override fun getImageModel(): String = settings.getImageModel()
+
+    override fun setImageModel(modelId: String) = settings.setImageModel(modelId)
+
+    override fun getTextModel(): String = settings.getTextModel()
+
+    override fun setTextModel(modelId: String) = settings.setTextModel(modelId)
+
+    override suspend fun fetchImageModels(): List<ImageModel>? = withContext(Dispatchers.IO) {
+        val account = settings.getCfAccountId().takeIf { it.isNotBlank() } ?: return@withContext null
+        val token = settings.getCfApiToken().takeIf { it.isNotBlank() } ?: return@withContext null
+        runCatching {
+            val remote = NetworkModule.modelCatalogClient.cloudflareImageModels(account, token)
+            // Порядок статического каталога сохраняем (самая мощная сверху);
+            // удаляем модели, которых нет на аккаунте, добавляем в хвост новые.
+            val known = ImageModel.catalog.filter { it.id in remote }
+            val unknown = remote.filter { id -> ImageModel.byId(id) == null && id.startsWith("@cf/") }
+                .mapNotNull { id ->
+                    val label = id.substringAfterLast('/')
+                    ImageModel(id = id, displayName = label, description = "Cloudflare Workers AI")
+                }
+            (known + unknown).takeIf { known.isNotEmpty() || unknown.isNotEmpty() }
+        }.getOrNull()
+    }
+
+    override suspend fun generateContent(prompt: String, type: GenerationType, imageModel: String?): File = when (type) {
+        GenerationType.IMAGE -> generateImage(prompt, imageModel)
         GenerationType.TEXT -> throw IllegalArgumentException("TEXT генерируется через generateText")
         GenerationType.VIDEO, GenerationType.AUDIO ->
             throw IllegalArgumentException("Неподдерживаемый тип генерации: $type")
     }
 
-    override suspend fun editImage(source: File, instruction: String): File = withContext(Dispatchers.IO) {
+    override suspend fun editImage(source: File, instruction: String, imageModel: String?): File = withContext(Dispatchers.IO) {
         val (account, token) = requireCloudflareCredentials()
         if (!source.exists()) throw IOException(stringsContext.getString(R.string.edit_source_missing))
 
@@ -126,7 +154,7 @@ class DefaultChatRepository(
                 .addFormDataPart("height", height.toString())
                 .addFormDataPart("seed", Random.nextInt(0, Int.MAX_VALUE).toString())
                 .build()
-            val response = cloudflareApiService.runKlein(kleinUrl(account), "Bearer $token", body)
+            val response = cloudflareApiService.runKlein(runUrl(account, ImageModel.DEFAULT.id), "Bearer $token", body)
             val encoded = response.result?.image?.takeIf { it.isNotBlank() }
                 ?: throw IOException(stringsContext.getString(R.string.error_no_image))
             saveDecodedImage(Base64.decode(encoded, Base64.DEFAULT))
@@ -152,14 +180,17 @@ class DefaultChatRepository(
     override suspend fun generateTextStreamed(
         prompt: String,
         history: List<ChatMessage>,
-        onDelta: (String) -> Unit
+        onDelta: (String) -> Unit,
+        attachedImage: File?
     ): String {
         val apiKey = settings.getGroqApiKey().takeIf { it.isNotBlank() }
             ?: throw IOException(stringsContext.getString(R.string.groq_key_required))
+        // Vision-запросы идут только через мультимодальную модель — gpt-oss изображения не принимает.
+        val model = if (attachedImage != null) VISION_MODEL else settings.getTextModel()
         val body = gson.toJson(
             ChatMessageRequest(
-                model = settings.getTextModel(),
-                messages = buildTextMessages(prompt, history),
+                model = model,
+                messages = buildTextMessages(prompt, history, attachedImage),
                 temperature = 0.7,
                 max_tokens = TEXT_MAX_TOKENS,
                 stream = true
@@ -170,7 +201,7 @@ class DefaultChatRepository(
         return full
     }
 
-    private fun buildTextMessages(prompt: String, history: List<ChatMessage>): List<Message> =
+    private fun buildTextMessages(prompt: String, history: List<ChatMessage>, attachedImage: File? = null): List<Message> =
         buildList {
             add(Message(role = "system", content = TEXT_SYSTEM_PROMPT))
             // При «Повторить»/регенерации исходный запрос уже в истории — не дублируем его в конце.
@@ -181,15 +212,31 @@ class DefaultChatRepository(
                     add(Message(role = if (message.isUser()) "user" else "assistant", content = content))
                 }
             }
-            add(Message(content = prompt))
+            add(
+                if (attachedImage != null) {
+                    Message(role = "user", content = listOf(MessagePart(type = "text", text = prompt), imagePart(attachedImage)))
+                } else {
+                    Message(content = prompt)
+                }
+            )
         }
+
+    private fun imagePart(file: File): MessagePart {
+        val bytes = file.readBytes()
+        val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return MessagePart(
+            type = "image_url",
+            image_url = ImageUrl(url = "data:image/jpeg;base64,$encoded")
+        )
+    }
 
     override suspend fun translateToEnglish(text: String): String =
         if (!settings.isAutoTranslateEnabled()) text
         else translationClient.translateToEnglish(text, settings.getGroqApiKey())
 
-    private suspend fun generateImage(prompt: String): File = withContext(Dispatchers.IO) {
+    private suspend fun generateImage(prompt: String, imageModel: String?): File = withContext(Dispatchers.IO) {
         val (account, token) = requireCloudflareCredentials()
+        val model = ImageModel.byId(imageModel.orEmpty()) ?: ImageModel.DEFAULT
         val (width, height) = ImageSpec.generationSize(settings.getImageFormat())
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
@@ -198,7 +245,7 @@ class DefaultChatRepository(
             .addFormDataPart("height", height.toString())
             .addFormDataPart("seed", Random.nextInt(0, Int.MAX_VALUE).toString())
             .build()
-        val response = cloudflareApiService.runKlein(kleinUrl(account), "Bearer $token", body)
+        val response = cloudflareApiService.runKlein(runUrl(account, model.id), "Bearer $token", body)
         val encoded = response.result?.image?.takeIf { it.isNotBlank() }
             ?: throw IOException(stringsContext.getString(R.string.error_no_image))
         saveDecodedImage(Base64.decode(encoded, Base64.DEFAULT))
@@ -257,8 +304,8 @@ class DefaultChatRepository(
         file
     }
 
-    private fun kleinUrl(account: String): String =
-        "https://api.cloudflare.com/client/v4/accounts/$account/ai/run/@cf/black-forest-labs/flux-2-klein-4b"
+    private fun runUrl(account: String, modelId: String): String =
+        "https://api.cloudflare.com/client/v4/accounts/$account/ai/run/$modelId"
 
     private fun deleteMediaFiles(entity: ChatMessageEntity) {
         listOfNotNull(entity.imageUrl, entity.videoUrl, entity.audioUrl).forEach { path ->
@@ -299,6 +346,7 @@ class DefaultChatRepository(
     companion object {
         private const val TEXT_CONTEXT_MESSAGES = 10
         private const val TEXT_MAX_TOKENS = 1000
+        private const val VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
         private const val TEXT_SYSTEM_PROMPT =
             "You are a helpful assistant. Answer in the language the user writes in. Be concise and accurate."
     }

@@ -15,6 +15,8 @@
 
     <!-- Input bar -->
     <string name="input_hint">Что Вы хотите создать</string>
+    <string name="picker_format">Формат</string>
+    <string name="picker_model">Модель</string>
     <string name="cd_send">Отправить</string>
     <string name="cd_mic">Голосовой ввод</string>
     <string name="generating">Генерация…</string>
@@ -24,7 +26,6 @@
     <string name="cd_settings">Настройки</string>
     <string name="cd_back">Назад</string>
     <string name="cd_gallery">Галерея изображений</string>
-    <string name="cd_export_chat">Экспорт чата</string>
 
     <!-- Gallery -->
     <string name="gallery_title">Галерея</string>
@@ -47,6 +48,13 @@
     <string name="export_audio_marker">[Аудио]</string>
     <string name="export_chooser">Экспорт чата</string>
     <string name="export_empty">В этом чате пока нет сообщений</string>
+    <string name="export_format_title">Экспорт: %1$s</string>
+    <string name="export_format_title_plain">Формат экспорта</string>
+    <string name="export_format_text">Обычный текст</string>
+    <string name="export_format_markdown">Markdown</string>
+    <string name="export_format_pdf">PDF</string>
+    <string name="widget_quick_prompt_label">Быстрый промпт</string>
+    <string name="widget_quick_prompt_desc">Открывает Axora, чтобы сразу написать промпт</string>
 
     <!-- Messages -->
     <string name="cd_generated_image">Сгенерированное изображение</string>

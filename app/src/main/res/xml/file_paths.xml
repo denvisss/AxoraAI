@@ -2,4 +2,5 @@
 <paths>
     <files-path name="generated" path="generated/" />
     <cache-path name="update" path="update/" />
+    <cache-path name="export" path="export/" />
 </paths>

@@ -13,7 +13,12 @@ data class ChatMessageRequest(
     val reasoning_effort: String? = null
 )
 
-data class Message(val role: String = "user", val content: String)
+// content может быть строкой или массивом частей (текст + image_url) для vision-моделей.
+data class MessagePart(val type: String, val text: String? = null, val image_url: ImageUrl? = null)
+
+data class ImageUrl(val url: String)
+
+data class Message(val role: String = "user", val content: Any)
 
 data class ChatMessageResponse(val choices: List<Choice>?)
 

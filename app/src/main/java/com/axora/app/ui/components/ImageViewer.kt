@@ -155,7 +155,7 @@ private fun ZoomableImage(path: String, onZoomChanged: (Boolean) -> Unit) {
         return
     }
 
-    var scale by remember(path) { mutableStateOf(1f) }
+    var scale by remember(path) { mutableFloatStateOf(1f) }
     var offset by remember(path) { mutableStateOf(Offset.Zero) }
     var containerSize by remember(path) { mutableStateOf(IntSize.Zero) }
 

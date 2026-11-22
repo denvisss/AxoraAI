@@ -66,7 +66,7 @@ class ChatViewModelTest {
 
         override suspend fun clearChat(type: GenerationType) {}
 
-        override suspend fun generateContent(prompt: String, type: GenerationType): File {
+        override suspend fun generateContent(prompt: String, type: GenerationType, imageModel: String?): File {
             if (hangForever) suspendCancellableCoroutine<Unit> { }
             failWith?.let { throw it }
             return File("generated.jpg")
@@ -78,7 +78,7 @@ class ChatViewModelTest {
             return textAnswer
         }
 
-        override suspend fun editImage(source: File, instruction: String): File {
+        override suspend fun editImage(source: File, instruction: String, imageModel: String?): File {
             failWith?.let { throw it }
             return File("edited.jpg")
         }
@@ -98,6 +98,16 @@ class ChatViewModelTest {
         override fun setImageFormat(format: ImageFormat) {
             this.format = format
         }
+
+        override fun getImageModel(): String = ""
+
+        override fun setImageModel(modelId: String) {}
+
+        override fun getTextModel(): String = ""
+
+        override fun setTextModel(modelId: String) {}
+
+        override suspend fun fetchImageModels(): List<com.axora.app.domain.model.ImageModel>? = null
     }
 
     private lateinit var repository: FakeRepository

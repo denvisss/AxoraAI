@@ -11,7 +11,6 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -23,6 +22,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -31,6 +31,8 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,7 +45,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.BookmarkBorder
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
@@ -56,10 +58,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -77,7 +84,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.axora.app.R
 import com.axora.app.domain.model.ChatMessage
+import com.axora.app.domain.model.GenerationStats
 import com.axora.app.domain.model.GenerationType
+import com.axora.app.domain.model.ImageFormat
+import com.axora.app.domain.model.ImageModel
+import com.axora.app.domain.model.TextModel
 import com.axora.app.domain.model.PromptTemplate
 import com.axora.app.ui.components.*
 import com.axora.app.ui.theme.AxoraGradient
@@ -102,7 +113,8 @@ fun ChatScreen(
     viewModel: ChatViewModel,
     templateViewModel: TemplateViewModel,
     onSettingsClick: () -> Unit,
-    onGalleryClick: () -> Unit = {}
+    onGalleryClick: () -> Unit = {},
+    requestInputFocus: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val templates by templateViewModel.templates.collectAsState()
@@ -135,6 +147,7 @@ fun ChatScreen(
     var isListening by remember { mutableStateOf(false) }
     val activity = context as Activity
     val voiceHelper = remember { VoiceInputHelper(activity) }
+    val focusRequester = remember { FocusRequester() }
 
     val noMicPermission = stringResource(R.string.no_mic_permission)
     val noStoragePermission = stringResource(R.string.no_storage_permission)
@@ -153,8 +166,12 @@ fun ChatScreen(
         scope.launch {
             val file = withContext(Dispatchers.IO) { ImageImport.copyToImported(context, uri) }
             if (file != null) {
-                viewModel.importImageFile(file)
-                Toast.makeText(context, R.string.imported_hint, Toast.LENGTH_LONG).show()
+                if (uiState.selectedType == GenerationType.TEXT) {
+                    viewModel.attachImageForText(file)
+                } else {
+                    viewModel.importImageFile(file)
+                    Toast.makeText(context, R.string.imported_hint, Toast.LENGTH_LONG).show()
+                }
             }
         }
     }
@@ -166,6 +183,14 @@ fun ChatScreen(
         pendingSave = null
         if (granted && msg != null) performSave(context, scope, msg)
         else Toast.makeText(context, noStoragePermission, Toast.LENGTH_SHORT).show()
+    }
+
+    LaunchedEffect(requestInputFocus) {
+        if (requestInputFocus) {
+            // Поле ввода появляется вместе с остальным контентом — даём композиции завершиться.
+            delay(400)
+            runCatching { focusRequester.requestFocus() }
+        }
     }
 
     DisposableEffect(voiceHelper) {
@@ -244,7 +269,7 @@ fun ChatScreen(
     // Пагинация: у верхней границы списка подгружаем ещё страницу.
     val historyHasMore by viewModel.historyHasMore.collectAsState()
     var adjustScrollOnGrow by remember { mutableStateOf(false) }
-    var lastSeenCount by remember { mutableStateOf(0) }
+    var lastSeenCount by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         snapshotFlow { listState.firstVisibleItemIndex }.collect { index ->
             if (index <= 4 && historyHasMore && !uiState.isGenerating) {
@@ -426,11 +451,49 @@ fun ChatScreen(
                 }
             }
 
-            if (uiState.selectedType == GenerationType.IMAGE) {
-                FormatChips(
-                    selected = uiState.imageFormat,
-                    onSelect = viewModel::setImageFormat
-                )
+            if (uiState.selectedType == GenerationType.IMAGE || uiState.selectedType == GenerationType.TEXT) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (uiState.selectedType == GenerationType.IMAGE) {
+                        PickerChip(
+                            label = stringResource(R.string.picker_format),
+                            value = uiState.imageFormat.label,
+                            items = ImageFormat.entries.map {
+                                PickerItem(id = it.name, title = it.label)
+                            },
+                            selectedId = uiState.imageFormat.name,
+                            onSelect = {
+                                ImageFormat.valueOf(it.id).let(viewModel::setImageFormat)
+                            }
+                        )
+                        PickerChip(
+                            label = stringResource(R.string.picker_model),
+                            value = ImageModel.byId(uiState.imageModel)?.displayName
+                                ?: ImageModel.DEFAULT.displayName,
+                            items = viewModel.availableImageModels().map {
+                                PickerItem(id = it.id, title = it.displayName, subtitle = it.description)
+                            },
+                            selectedId = uiState.imageModel,
+                            onSelect = {
+                                viewModel.setImageModel(ImageModel.byId(it.id) ?: ImageModel.DEFAULT)
+                            }
+                        )
+                    } else {
+                        PickerChip(
+                            label = stringResource(R.string.picker_model),
+                            value = textModelDisplayName(uiState.textModel),
+                            items = TextModel.catalog.map {
+                                PickerItem(id = it.id, title = it.displayName, subtitle = it.description)
+                            },
+                            selectedId = uiState.textModel,
+                            onSelect = { viewModel.setTextModel(it.id) }
+                        )
+                    }
+                }
             }
 
             Box(
@@ -449,6 +512,52 @@ fun ChatScreen(
                     )
             )
 
+            if (uiState.selectedType == GenerationType.TEXT) {
+                val pendingAttachment = viewModel.pendingTextAttachment
+                if (pendingAttachment != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = scheme.surfaceContainerHigh
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AddPhotoAlternate,
+                                    contentDescription = null,
+                                    tint = scheme.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = File(pendingAttachment.path).name,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = scheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.widthIn(max = 180.dp)
+                                )
+                                IconButton(onClick = { viewModel.clearPendingTextAttachment() }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.close),
+                                        tint = scheme.onSurfaceVariant,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             BottomInputBar(
                 value = inputText,
                 onValueChange = { inputText = it },
@@ -456,7 +565,8 @@ fun ChatScreen(
                     viewModel.sendMessage(inputText)
                     inputText = ""
                 },
-                attachImages = uiState.selectedType == GenerationType.IMAGE,
+                attachImages = uiState.selectedType == GenerationType.IMAGE ||
+                    uiState.selectedType == GenerationType.TEXT,
                 onAttachImage = {
                     pickImageLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -465,7 +575,8 @@ fun ChatScreen(
                 onStartVoice = { startVoiceInput() },
                 onStopVoice = { stopVoiceInput() },
                 isGenerating = uiState.isGenerating,
-                isListening = isListening
+                isListening = isListening,
+                focusRequester = focusRequester
             )
         }
         }
@@ -484,6 +595,8 @@ fun ChatScreen(
                         DialogAction(Icons.Rounded.Share, stringResource(R.string.action_share)) {
                             shareMedia(context, message); actionMessage = null
                         }
+                    }
+                    if (message.hasMedia() || message.generationType == GenerationType.TEXT) {
                         if (message.originalPrompt != null) {
                             DialogAction(Icons.Rounded.Refresh, stringResource(R.string.action_regenerate)) {
                                 viewModel.regenerate(message); actionMessage = null
@@ -890,6 +1003,9 @@ fun copyToClipboard(context: Context, text: String) {
 private fun formatDate(timestamp: Long): String =
     SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(timestamp))
 
+private fun textModelDisplayName(modelId: String): String =
+    TextModel.byId(modelId)?.displayName ?: TextModel.catalog.first().displayName
+
 @Composable
 private fun StreamingBubble(text: String) {
     val scheme = MaterialTheme.colorScheme
@@ -935,7 +1051,8 @@ fun BottomInputBar(
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
     isGenerating: Boolean,
-    isListening: Boolean
+    isListening: Boolean,
+    focusRequester: FocusRequester? = null
 ) {
     val scheme = MaterialTheme.colorScheme
     Surface(
@@ -960,7 +1077,9 @@ fun BottomInputBar(
             OutlinedTextField(
                 value = value,
                 onValueChange = onValueChange,
-                modifier = Modifier.weight(1f),
+                modifier = focusRequester
+                    ?.let { Modifier.weight(1f).focusRequester(it) }
+                    ?: Modifier.weight(1f),
                 placeholder = {
                     Text(
                         stringResource(R.string.input_hint),
@@ -1026,22 +1145,56 @@ fun BottomInputBar(
                 enter = fadeIn(tween(150)) + scaleIn(tween(150), initialScale = 0.7f),
                 exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.7f)
             ) {
-                IconButton(
-                    onClick = onSend,
+                SendButton(
                     enabled = !isGenerating,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(AxoraGradient)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Send,
-                        contentDescription = stringResource(R.string.cd_send),
-                        tint = Color.White,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                    onSend = onSend
+                )
             }
+        }
+    }
+}
+
+// Кнопка отправки: градиентный круг с мягким свечением и отдачей при нажатии.
+@Composable
+private fun SendButton(
+    enabled: Boolean,
+    onSend: () -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.86f else 1f,
+        animationSpec = tween(120),
+        label = "sendScale"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .scale(scale)
+            .shadow(
+                elevation = 6.dp,
+                shape = CircleShape,
+                ambientColor = AxoraBlue.copy(alpha = 0.35f),
+                spotColor = AxoraViolet.copy(alpha = 0.35f)
+            )
+            .clip(CircleShape)
+            .background(AxoraGradient)
+    ) {
+        IconButton(
+            onClick = onSend,
+            enabled = enabled,
+            interactionSource = interaction,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.Send,
+                contentDescription = stringResource(R.string.cd_send),
+                tint = Color.White,
+                modifier = Modifier
+                    .size(22.dp)
+                    .graphicsLayer { translationX = 1.dp.toPx() }
+            )
         }
     }
 }

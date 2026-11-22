@@ -16,7 +16,6 @@ import androidx.core.content.IntentCompat
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -49,6 +48,7 @@ import com.axora.app.ui.viewmodel.SettingsViewModelFactory
 import com.axora.app.ui.viewmodel.TemplateViewModel
 import com.axora.app.ui.viewmodel.TemplateViewModelFactory
 import com.axora.app.util.ImageImport
+import com.axora.app.widget.QuickPromptWidgetProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -70,6 +70,7 @@ class MainActivity : ComponentActivity() {
         }
         val templateViewModel: TemplateViewModel by viewModels { TemplateViewModelFactory(app.templateStore) }
         handleSharedImage(intent, chatViewModel)
+        val openPromptFromWidget = intent?.action == QuickPromptWidgetProvider.ACTION_OPEN_PROMPT
 
         setContent {
             val settingsState by settingsViewModel.uiState.collectAsState()
@@ -142,7 +143,8 @@ class MainActivity : ComponentActivity() {
                             viewModel = chatViewModel,
                             templateViewModel = templateViewModel,
                             onSettingsClick = { showSettings = true },
-                            onGalleryClick = { showGallery = true }
+                            onGalleryClick = { showGallery = true },
+                            requestInputFocus = openPromptFromWidget
                         )
                     }
                 }

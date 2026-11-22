@@ -14,19 +14,27 @@ interface ChatRepository {
     suspend fun updateMessage(messageId: Long, newText: String, newOriginal: String?)
     suspend fun deleteMessage(messageId: Long)
     suspend fun clearChat(type: GenerationType)
-    suspend fun generateContent(prompt: String, type: GenerationType): File
+    suspend fun generateContent(prompt: String, type: GenerationType, imageModel: String? = null): File
     suspend fun generateText(prompt: String, history: List<ChatMessage> = emptyList()): String
 
     // Дефолт — не-стриминговый fallback: фейковые репозитории в тестах трогать не нужно.
     suspend fun generateTextStreamed(
         prompt: String,
         history: List<ChatMessage> = emptyList(),
-        onDelta: (String) -> Unit = {}
+        onDelta: (String) -> Unit = {},
+        attachedImage: File? = null
     ): String = generateText(prompt, history).also { onDelta(it) }
-    suspend fun editImage(source: File, instruction: String): File
+    suspend fun editImage(source: File, instruction: String, imageModel: String? = null): File
     suspend fun translateToEnglish(text: String): String
     suspend fun autoSaveToGallery(message: ChatMessage)
     suspend fun deleteMediaOf(message: ChatMessage)
     fun getImageFormat(): ImageFormat
     fun setImageFormat(format: ImageFormat)
+    fun getImageModel(): String
+    fun setImageModel(modelId: String)
+    fun getTextModel(): String
+    fun setTextModel(modelId: String)
+
+    // Живой каталог моделей картинок; при ошибке сети/ключей — null (вызывающий код берёт статику).
+    suspend fun fetchImageModels(): List<com.axora.app.domain.model.ImageModel>?
 }
