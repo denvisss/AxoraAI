@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="axora_window_background">#F7F7FC</color>
+    <color name="splash_underlay">#1E1550</color>
 </resources>
