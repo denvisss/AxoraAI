@@ -37,6 +37,12 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.VideoLibrary
 import androidx.compose.material3.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +70,55 @@ import com.axora.app.domain.model.ImageFormat
 import com.axora.app.ui.copyToClipboard
 import com.axora.app.ui.theme.AxoraGradient
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+// Время под баблом: сегодня — HH:mm, раньше — dd.MM HH:mm.
+private val bubbleTimeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
+private val bubbleDateTimeFormat = SimpleDateFormat("dd.MM HH:mm", Locale.getDefault())
+
+fun formatBubbleTime(timestamp: Long): String {
+    val date = Date(timestamp)
+    val today = Date()
+    val isToday = android.text.format.DateFormat.format("yyyyMMdd", date)
+        .toString() == android.text.format.DateFormat.format("yyyyMMdd", today)
+    return if (isToday) bubbleTimeFormat.format(date) else bubbleDateTimeFormat.format(date)
+}
+
+fun isDifferentDay(previous: ChatMessage?, current: ChatMessage): Boolean =
+    previous == null || dayKey(previous.timestamp) != dayKey(current.timestamp)
+
+private fun dayKey(timestamp: Long): String =
+    android.text.format.DateFormat.format("yyyyMMdd", Date(timestamp)).toString()
+
+// Заголовок-разделитель дня в чате: «Сегодня», «Вчера» или дата.
+private val dayFormat = SimpleDateFormat("dd MMMM", Locale.getDefault())
+
+@Composable
+fun DaySeparator(timestamp: Long) {
+    val scheme = MaterialTheme.colorScheme
+    val date = Date(timestamp)
+    val today = Date()
+    val yesterday = Date(today.time - 24L * 60 * 60 * 1000)
+    val fmt = "yyyyMMdd"
+    val label = when {
+        android.text.format.DateFormat.format(fmt, date).toString() == android.text.format.DateFormat.format(fmt, today).toString() ->
+            stringResource(R.string.day_today)
+        android.text.format.DateFormat.format(fmt, date).toString() == android.text.format.DateFormat.format(fmt, yesterday).toString() ->
+            stringResource(R.string.day_yesterday)
+        else -> dayFormat.format(date)
+    }
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelMedium,
+        color = scheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    )
+}
 
 @Composable
 fun getGenerationTypeName(type: GenerationType): String = stringResource(
@@ -267,6 +322,7 @@ fun GenerationTabs(
 @Composable
 fun MessageBubble(
     message: ChatMessage,
+    modifier: Modifier = Modifier,
     onRetry: () -> Unit,
     onClick: () -> Unit,
     onImageClick: () -> Unit,
@@ -287,11 +343,17 @@ fun MessageBubble(
     }
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
+        Text(
+            text = formatBubbleTime(message.timestamp),
+            style = MaterialTheme.typography.labelSmall,
+            color = scheme.onSurfaceVariant.copy(alpha = 0.7f),
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 2.dp)
+        )
         if (message.text.isNotEmpty()) {
             Box(
                 modifier = Modifier
@@ -577,36 +639,56 @@ private fun AudioPlayer(file: File) {
 @Composable
 fun LoadingIndicator(onCancel: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    Row(
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val phase by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shimmerAlpha"
+    )
+
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
+        horizontalAlignment = Alignment.Start
     ) {
-        CircularProgressIndicator(
-            modifier = Modifier.size(18.dp),
-            strokeWidth = 2.dp,
-            color = scheme.primary
-        )
-        Spacer(Modifier.width(8.dp))
-        Text(
-            stringResource(R.string.generating),
-            style = MaterialTheme.typography.labelMedium,
-            color = scheme.onSurfaceVariant
-        )
-        Spacer(Modifier.width(8.dp))
-        TextButton(
-            onClick = onCancel,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+        // Shimmer-заглушки под будущий контент — вместо статичного спиннера.
+        ShimmerBar(width = 140.dp, alpha = phase, scheme = scheme)
+        Spacer(Modifier.height(8.dp))
+        ShimmerBar(width = 260.dp, alpha = phase * 0.85f, scheme = scheme)
+        Spacer(Modifier.height(8.dp))
+        ShimmerBar(width = 200.dp, alpha = phase * 0.7f, scheme = scheme)
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
         ) {
-            Text(
-                stringResource(R.string.cancel_generation),
-                style = MaterialTheme.typography.labelMedium,
-                color = scheme.primary
-            )
+            TextButton(
+                onClick = onCancel,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    stringResource(R.string.cancel_generation),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = scheme.primary
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun ShimmerBar(width: androidx.compose.ui.unit.Dp, alpha: Float, scheme: androidx.compose.material3.ColorScheme) {
+    Box(
+        modifier = Modifier
+            .size(width = width, height = 14.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(scheme.surfaceContainerHighest.copy(alpha = alpha.coerceIn(0.15f, 1f)))
+    )
 }
 
 @Composable
@@ -657,6 +739,9 @@ fun PickerChip(
         FilterChip(
             selected = true,
             onClick = { expanded = true },
+            // Минимальная цель касания 48dp по гайдам доступности: высота чипа ~32dp,
+            // поэтому через minimumInteractiveComponentSize компенсируем отступами.
+            modifier = Modifier.heightIn(min = 48.dp),
             label = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -778,7 +863,7 @@ fun EmptyChatPlaceholder(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 examples.forEach { example ->
-                    val shape = RoundedCornerShape(18.dp)
+                    val shape = RoundedCornerShape(16.dp)
                     Surface(
                         shape = shape,
                         color = accent.copy(alpha = 0.08f),
@@ -814,7 +899,11 @@ fun EmptyChatPlaceholder(
 }
 
 @Composable
-fun ErrorBanner(error: String, onDismiss: () -> Unit) {
+fun ErrorBanner(
+    error: String,
+    onDismiss: () -> Unit,
+    onRetry: (() -> Unit)? = null
+) {
     val scheme = MaterialTheme.colorScheme
     Surface(
         color = scheme.errorContainer,
@@ -840,6 +929,18 @@ fun ErrorBanner(error: String, onDismiss: () -> Unit) {
                 color = scheme.onErrorContainer,
                 modifier = Modifier.weight(1f)
             )
+            if (onRetry != null) {
+                TextButton(
+                    onClick = onRetry,
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.retry),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = scheme.error
+                    )
+                }
+            }
             IconButton(onClick = onDismiss) {
                 Icon(
                     imageVector = Icons.Rounded.Close,

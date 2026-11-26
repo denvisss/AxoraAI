@@ -1,6 +1,8 @@
 package com.axora.app.ui
 
 import android.app.LocaleManager
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -11,7 +13,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.app.NotificationCompat
 import androidx.core.content.IntentCompat
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
@@ -32,6 +36,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.lifecycleScope
 import com.axora.app.AxoraApplication
 import com.axora.app.BuildConfig
@@ -54,6 +60,10 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(SettingsRepository.wrapLocale(newBase))
     }
@@ -71,6 +81,26 @@ class MainActivity : ComponentActivity() {
         val templateViewModel: TemplateViewModel by viewModels { TemplateViewModelFactory(app.templateStore) }
         handleSharedImage(intent, chatViewModel)
         val openPromptFromWidget = intent?.action == QuickPromptWidgetProvider.ACTION_OPEN_PROMPT
+
+        // Уведомление «генерация готова»: только когда приложение свёрнуто во время генерации.
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) { chatViewModel.appInForeground.set(true) }
+            override fun onStop(owner: LifecycleOwner) { chatViewModel.appInForeground.set(false) }
+        })
+        lifecycleScope.launch {
+            chatViewModel.completedInBackground.collect { completed ->
+                if (completed) showCompletionNotification()
+            }
+        }
+
+        // Разрешение уведомлений (Android 13+): запрос при первом запуске, чтобы
+        // «генерация готова» работала без похода в настройки системы.
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
 
         setContent {
             val settingsState by settingsViewModel.uiState.collectAsState()
@@ -113,7 +143,11 @@ class MainActivity : ComponentActivity() {
             BackHandler(enabled = showSettings) { showSettings = false }
             BackHandler(enabled = showGallery) { showGallery = false }
 
-            AxoraTheme(darkTheme = darkTheme) {
+            AxoraTheme(
+                darkTheme = darkTheme,
+                amoled = settingsState.amoled,
+                dynamicColor = settingsState.dynamicColor
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -160,5 +194,36 @@ class MainActivity : ComponentActivity() {
             val file = ImageImport.copyToImported(this@MainActivity, uri, prefix = "shared") ?: return@launch
             viewModel.importImageFile(file)
         }
+    }
+
+    private fun showCompletionNotification() {
+        val manager = getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= 26) {
+            manager.createNotificationChannel(
+                NotificationChannel(NOTIFICATION_CHANNEL_ID, getString(R.string.notification_channel_name), NotificationManager.IMPORTANCE_DEFAULT)
+            )
+        }
+        if (Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) return
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pending = android.app.PendingIntent.getActivity(
+            this, 0, intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(getString(R.string.notification_generation_done))
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .build()
+        manager.notify(NOTIFICATION_ID, notification)
+    }
+
+    private companion object {
+        const val NOTIFICATION_CHANNEL_ID = "generation_done"
+        const val NOTIFICATION_ID = 1001
     }
 }

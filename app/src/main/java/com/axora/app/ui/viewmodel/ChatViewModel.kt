@@ -16,9 +16,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -60,6 +64,14 @@ class ChatViewModel(
     // Инкремент при каждом успешном завершении генерации — для виброотклика в UI.
     private val _generationCompleted = MutableStateFlow(0L)
     val generationCompleted: StateFlow<Long> = _generationCompleted.asStateFlow()
+
+    // Одноразовое событие: генерация закончилась, когда приложение было в фоне.
+    private val _completedInBackground = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
+    val completedInBackground: SharedFlow<Boolean> = _completedInBackground.asSharedFlow()
+
+    // Уведомление нужно только когда пользователь ушёл из приложения во время генерации.
+    // AtomicBoolean: lifecycle-callback и генерирующая корутина — разные потоки.
+    val appInForeground = java.util.concurrent.atomic.AtomicBoolean(true)
 
     val galleryImages: StateFlow<List<ChatMessage>> = repository.getAllImages()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -129,8 +141,8 @@ class ChatViewModel(
         val trimmed = prompt.trim()
         if (trimmed.isEmpty() || type in _uiState.value.generatingTypes) return
         val textHistory = textHistorySnapshot()
-        val attachment = pendingTextAttachment
-        pendingTextAttachment = null
+        val attachment = _pendingTextAttachment.value
+        _pendingTextAttachment.value = null
         startGeneration(
             trimmed,
             type,
@@ -177,10 +189,11 @@ class ChatViewModel(
             var produced: ChatMessage? = null
             try {
                 before()
-                produced = produce()
+                produced = produceWithRetry(produce)
                 repository.insertMessage(produced)
                 repository.autoSaveToGallery(produced)
                 _generationCompleted.value += 1
+                _completedInBackground.emit(!appInForeground.get())
             } catch (e: CancellationException) {
                 produced?.let { message ->
                     withContext(NonCancellable) { repository.deleteMediaOf(message) }
@@ -206,6 +219,34 @@ class ChatViewModel(
             }
         }
         generationJobs[type] = job
+    }
+
+    // Бесплатные тарифы часто троттлят (429) или отдают 503/таймаут — пару тихих
+    // повторов с паузой спасают от ручного «Повторить». Перед повтором сбрасываем
+    // streamingText: дельты первой попытки могли уйти в UI, иначе текст «отматывается».
+    private suspend fun produceWithRetry(produce: suspend () -> ChatMessage): ChatMessage {
+        var lastError: Exception? = null
+        repeat(GENERATION_ATTEMPTS - 1) { attempt ->
+            try {
+                return produce()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (!isTransient(e)) throw e
+                lastError = e
+                _uiState.update { it.copy(streamingText = null) }
+                delay(RETRY_DELAY_MS * (attempt + 1))
+            }
+        }
+        return produce()
+    }
+
+    private fun isTransient(e: Exception): Boolean {
+        if (e is retrofit2.HttpException) {
+            return e.code() == 429 || e.code() == 502 || e.code() == 503
+        }
+        // OCI-код Cloudflare 5028 = модель перегружена, приходит как HTTP-ошибка выше.
+        return e is java.net.SocketTimeoutException || e is java.net.ConnectException
     }
 
     // Снимок истории берётся до вставки сообщения: иначе при смене вкладки
@@ -296,15 +337,17 @@ class ChatViewModel(
         )
     }
 
-    // Вложение для следующего текстового промпта (vision). Устанавливается из ChatScreen.
-    var pendingTextAttachment: File? = null
+    // Вложение для следующего текстового промпта (vision). StateFlow: превью в UI
+    // должно обновляться при установке/снятии, в т.ч. после поворота экрана.
+    private val _pendingTextAttachment = MutableStateFlow<File?>(null)
+    val pendingTextAttachment: StateFlow<File?> = _pendingTextAttachment.asStateFlow()
 
     fun attachImageForText(file: File) {
-        pendingTextAttachment = file
+        _pendingTextAttachment.value = file
     }
 
     fun clearPendingTextAttachment() {
-        pendingTextAttachment = null
+        _pendingTextAttachment.value = null
     }
 
     fun editMessage(messageId: Long, newText: String) {
@@ -394,5 +437,7 @@ class ChatViewModel(
 
     companion object {
         const val HISTORY_PAGE = 50
+        private const val GENERATION_ATTEMPTS = 3
+        private const val RETRY_DELAY_MS = 2000L
     }
 }

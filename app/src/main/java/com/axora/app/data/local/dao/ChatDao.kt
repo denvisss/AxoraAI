@@ -33,6 +33,13 @@ interface ChatDao {
     @Query("DELETE FROM chat_messages")
     suspend fun deleteAllMessages()
 
+    // Импорт бэкапа атомарно: crash посреди восстановления не оставит пустую базу.
+    @Transaction
+    suspend fun restoreMessages(messages: List<ChatMessageEntity>) {
+        deleteAllMessages()
+        messages.forEach { insertMessage(it) }
+    }
+
     @Query("SELECT * FROM chat_messages WHERE id = :messageId")
     suspend fun getMessageById(messageId: Long): ChatMessageEntity?
 

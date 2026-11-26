@@ -17,6 +17,11 @@
     <string name="input_hint">Что Вы хотите создать</string>
     <string name="picker_format">Формат</string>
     <string name="picker_model">Модель</string>
+    <string name="notification_channel_name">Завершение генерации</string>
+    <string name="notification_generation_done">Генерация завершена — откройте Axora</string>
+    <string name="cd_scroll_down">Прокрутить вниз</string>
+    <string name="day_today">Сегодня</string>
+    <string name="day_yesterday">Вчера</string>
     <string name="cd_send">Отправить</string>
     <string name="cd_mic">Голосовой ввод</string>
     <string name="generating">Генерация…</string>
@@ -158,6 +163,10 @@
     <string name="proxy_none_alive">Сейчас в списке нет рабочих серверов. Попробуйте другой протокол или обновите список позже</string>
     <string name="proxy_latency_ms">%1$d мс</string>
     <string name="theme_title">Тема</string>
+    <string name="theme_dynamic_title">Цвета из обоев</string>
+    <string name="theme_dynamic_subtitle">Material You: тема подстраивается под системные цвета (Android 12+)</string>
+    <string name="theme_amoled_title">Чёрная (AMOLED)</string>
+    <string name="theme_amoled_subtitle">Чистый чёрный фон — экономит заряд на OLED-экранах</string>
     <string name="theme_system">Как в системе</string>
     <string name="theme_light">Светлая</string>
     <string name="theme_dark">Тёмная</string>

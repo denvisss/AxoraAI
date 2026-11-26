@@ -17,6 +17,11 @@
     <string name="input_hint">What do you want to create</string>
     <string name="picker_format">Format</string>
     <string name="picker_model">Model</string>
+    <string name="notification_channel_name">Generation complete</string>
+    <string name="notification_generation_done">Generation finished — open Axora</string>
+    <string name="cd_scroll_down">Scroll to bottom</string>
+    <string name="day_today">Today</string>
+    <string name="day_yesterday">Yesterday</string>
     <string name="cd_send">Send</string>
     <string name="cd_mic">Voice input</string>
     <string name="generating">Generating…</string>
@@ -158,6 +163,10 @@
     <string name="proxy_none_alive">No working servers in the list right now. Try another protocol or refresh the list later</string>
     <string name="proxy_latency_ms">%1$d ms</string>
     <string name="theme_title">Theme</string>
+    <string name="theme_dynamic_title">Colors from wallpaper</string>
+    <string name="theme_dynamic_subtitle">Material You: theme follows system colors (Android 12+)</string>
+    <string name="theme_amoled_title">Black (AMOLED)</string>
+    <string name="theme_amoled_subtitle">True black background — saves battery on OLED screens</string>
     <string name="theme_system">Follow system</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>

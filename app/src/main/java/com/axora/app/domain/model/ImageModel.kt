@@ -2,6 +2,9 @@ package com.axora.app.domain.model
 
 // Модели генерации картинок на Cloudflare Workers AI. Порядок в catalog — порядок в селекторе:
 // сверху самая мощная, она же по умолчанию.
+//
+// NB: Cloudflare 20.11.2026 удалил 24 модели (SDXL, Dreamshaper, SDXL-Lightning и др. —
+// теперь HTTP 410). В каталог держим только живые модели; новые добавляем по changelog.
 data class ImageModel(
     val id: String,
     val displayName: String,
@@ -28,11 +31,6 @@ data class ImageModel(
             displayName = "FLUX.1 Schnell",
             description = "Очень быстрая, 12B"
         )
-        private val SDXL = ImageModel(
-            id = "@cf/stabilityai/stable-diffusion-xl-base-1.0",
-            displayName = "SDXL 1.0",
-            description = "Классика Stability AI"
-        )
 
         val DEFAULT = KLEIN_4B
 
@@ -40,8 +38,7 @@ data class ImageModel(
             KLEIN_9B,
             KLEIN_4B,
             FLUX_2_DEV,
-            FLUX_1_SCHNELL,
-            SDXL
+            FLUX_1_SCHNELL
         )
 
         fun byId(id: String): ImageModel? = catalog.firstOrNull { it.id == id }

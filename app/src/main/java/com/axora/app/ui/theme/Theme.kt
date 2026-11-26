@@ -1,13 +1,18 @@
 package com.axora.app.ui.theme
 
 import android.app.Activity
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
@@ -90,9 +95,18 @@ private val AxoraDarkScheme = darkColorScheme(
 @Composable
 fun AxoraTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    amoled: Boolean = false,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) AxoraDarkScheme else AxoraLightScheme
+    val context = LocalContext.current
+    val baseScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= 31 ->
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        darkTheme -> if (amoled) AxoraDarkScheme.toAmoled() else AxoraDarkScheme
+        else -> AxoraLightScheme
+    }
+    val colorScheme = if (darkTheme && amoled) baseScheme.toAmoled() else baseScheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -107,3 +121,13 @@ fun AxoraTheme(
         content = content
     )
 }
+
+private fun ColorScheme.toAmoled(): ColorScheme = copy(
+    background = Color(0xFF000000),
+    surface = Color(0xFF000000),
+    surfaceContainer = Color(0xFF121118),
+    surfaceContainerHigh = Color(0xFF1B1A22),
+    surfaceContainerHighest = Color(0xFF26242E),
+    surfaceContainerLow = Color(0xFF0A0A0E),
+    surfaceContainerLowest = Color(0xFF000000)
+)

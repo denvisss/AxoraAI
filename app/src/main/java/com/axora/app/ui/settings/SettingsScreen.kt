@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Forum
@@ -285,6 +286,14 @@ fun SettingsScreen(
                         onAutoTranslateChange = viewModel::setAutoTranslate,
                         darkTheme = state.darkTheme,
                         onThemeChange = viewModel::setDarkTheme,
+                        dynamicColor = state.dynamicColor,
+                        onDynamicColorChange = viewModel::setDynamicColor,
+                        amoled = state.amoled,
+                        onAmoledThemeSelected = {
+                            viewModel.setDarkTheme(true)
+                            viewModel.setAmoled(true)
+                        },
+                        onAmoledOff = { viewModel.setAmoled(false) },
                         templates = templates,
                         onAddTemplate = templateViewModel::addTemplate,
                         onDeleteTemplate = templateViewModel::deleteTemplate,
@@ -381,6 +390,11 @@ private fun MainSettings(
     onAutoTranslateChange: (Boolean) -> Unit,
     darkTheme: Boolean?,
     onThemeChange: (Boolean?) -> Unit,
+    dynamicColor: Boolean,
+    onDynamicColorChange: (Boolean) -> Unit,
+    amoled: Boolean,
+    onAmoledThemeSelected: () -> Unit,
+    onAmoledOff: () -> Unit,
     templates: List<PromptTemplate>,
     onAddTemplate: (String) -> Unit,
     onDeleteTemplate: (Long) -> Unit,
@@ -448,7 +462,7 @@ private fun MainSettings(
         Box(
             modifier = Modifier
                 .size(56.dp)
-                .clip(RoundedCornerShape(18.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(AxoraGradient),
             contentAlignment = Alignment.Center
         ) {
@@ -474,7 +488,6 @@ private fun MainSettings(
         }
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
 
     SectionLabel(stringResource(R.string.section_connection))
     Surface(
@@ -545,8 +558,6 @@ private fun MainSettings(
         }
     }
 
-    Spacer(modifier = Modifier.height(20.dp))
-
     SectionLabel(stringResource(R.string.section_app))
     SettingsCard {
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -609,6 +620,7 @@ private fun MainSettings(
                     onClick = {
                         themeMenuExpanded = false
                         onThemeChange(null)
+                        onAmoledOff()
                     }
                 )
                 DropdownMenuItem(
@@ -624,6 +636,7 @@ private fun MainSettings(
                     onClick = {
                         themeMenuExpanded = false
                         onThemeChange(false)
+                        onAmoledOff()
                     }
                 )
                 DropdownMenuItem(
@@ -639,11 +652,34 @@ private fun MainSettings(
                     onClick = {
                         themeMenuExpanded = false
                         onThemeChange(true)
+                        onAmoledOff()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.theme_amoled_title)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = if (darkTheme == true && amoled) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                            contentDescription = null,
+                            tint = if (darkTheme == true && amoled) scheme.primary else scheme.outlineVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    },
+                    onClick = {
+                        themeMenuExpanded = false
+                        onAmoledThemeSelected()
                     }
                 )
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
+        SwitchRow(
+            icon = Icons.Rounded.Palette,
+            title = stringResource(R.string.theme_dynamic_title),
+            subtitle = stringResource(R.string.theme_dynamic_subtitle),
+            checked = dynamicColor,
+            onCheckedChange = onDynamicColorChange
+        )
         Spacer(modifier = Modifier.height(12.dp))
         HorizontalDivider(color = scheme.outlineVariant.copy(alpha = 0.5f))
         Spacer(modifier = Modifier.height(12.dp))
@@ -877,6 +913,11 @@ private fun MainSettings(
 
     Spacer(modifier = Modifier.height(20.dp))
 
+    Spacer(modifier = Modifier.height(16.dp))
+
+
+
+    Spacer(modifier = Modifier.height(20.dp))
     SectionLabel(stringResource(R.string.section_about))
     SettingsCard {
         Row(
@@ -2106,7 +2147,7 @@ private fun ProxyRow(
             )
         },
         enabled = !testing,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         color = scheme.surfaceContainerHighest,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -2209,7 +2250,9 @@ private fun StatusChip(connected: Boolean) {
                     if (connected) R.string.status_connected else R.string.status_needs_setup
                 ),
                 style = MaterialTheme.typography.labelSmall,
-                color = fg
+                color = fg,
+                maxLines = 1,
+                softWrap = false
             )
         }
     }

@@ -40,6 +40,8 @@ data class SettingsUiState(
     val autoSave: Boolean = false,
     val autoTranslate: Boolean = true,
     val darkTheme: Boolean? = null,
+    val dynamicColor: Boolean = true,
+    val amoled: Boolean = false,
     val textModel: String = SettingsRepository.DEFAULT_TEXT_MODEL,
     val language: String = SettingsRepository.DEFAULT_LANGUAGE,
     val mediaSize: Long = 0L,
@@ -90,6 +92,8 @@ class SettingsViewModel(
                 autoSave = settings.isAutoSaveEnabled(),
                 autoTranslate = settings.isAutoTranslateEnabled(),
                 darkTheme = settings.isDarkThemeEnabled(),
+                dynamicColor = settings.isDynamicColorEnabled(),
+                amoled = settings.isAmoledEnabled(),
                 textModel = settings.getTextModel(),
                 language = settings.getAppLanguage(),
                 keyStorageEncrypted = settings.isKeyStorageEncrypted,
@@ -164,6 +168,16 @@ class SettingsViewModel(
     fun setDarkTheme(enabled: Boolean?) {
         settings.setDarkThemeEnabled(enabled)
         _uiState.update { it.copy(darkTheme = enabled) }
+    }
+
+    fun setDynamicColor(enabled: Boolean) {
+        settings.setDynamicColorEnabled(enabled)
+        _uiState.update { it.copy(dynamicColor = enabled) }
+    }
+
+    fun setAmoled(enabled: Boolean) {
+        settings.setAmoledEnabled(enabled)
+        _uiState.update { it.copy(amoled = enabled) }
     }
 
     fun setTextModel(model: String) {
@@ -353,10 +367,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
-                    chatDao.deleteAllMessages()
-                    backup.messages.forEach { entity ->
-                        chatDao.insertMessage(entity.toEntity())
-                    }
+                    chatDao.restoreMessages(backup.messages.map { it.toEntity() })
                     templateStore.save(backup.templates)
                     val s = backup.settings
                     settings.setDarkThemeEnabled(s.darkTheme)

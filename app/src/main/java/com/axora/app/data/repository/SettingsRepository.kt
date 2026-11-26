@@ -89,6 +89,20 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    // Material You: цвета темы из обоев пользователя (Android 12+).
+    fun isDynamicColorEnabled(): Boolean = appPrefs.getBoolean(KEY_DYNAMIC_COLOR, true)
+
+    fun setDynamicColorEnabled(enabled: Boolean) {
+        appPrefs.edit { putBoolean(KEY_DYNAMIC_COLOR, enabled) }
+    }
+
+    // Чисто чёрный фон тёмной темы для OLED-экранов.
+    fun isAmoledEnabled(): Boolean = appPrefs.getBoolean(KEY_AMOLED, false)
+
+    fun setAmoledEnabled(enabled: Boolean) {
+        appPrefs.edit { putBoolean(KEY_AMOLED, enabled) }
+    }
+
     fun getTextModel(): String =
         appPrefs.getString(KEY_TEXT_MODEL, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_TEXT_MODEL
 
@@ -183,6 +197,8 @@ class SettingsRepository(private val context: Context) {
         private const val KEY_AUTO_SAVE = "auto_save_gallery"
         private const val KEY_AUTO_TRANSLATE = "auto_translate"
         private const val KEY_DARK_THEME = "dark_theme"
+        private const val KEY_DYNAMIC_COLOR = "dynamic_color"
+        private const val KEY_AMOLED = "amoled"
         private const val KEY_IMAGE_FORMAT = "image_format"
         private const val KEY_APP_LANGUAGE = "app_language"
         private const val KEY_LAST_UPDATE_CHECK = "last_update_check"

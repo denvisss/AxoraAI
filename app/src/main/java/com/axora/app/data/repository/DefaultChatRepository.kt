@@ -91,9 +91,7 @@ class DefaultChatRepository(
     }
 
     override suspend fun deleteMediaOf(message: ChatMessage) = withContext(Dispatchers.IO) {
-        listOfNotNull(message.imageUrl, message.videoUrl, message.audioUrl).forEach { path ->
-            runCatching { File(path).takeIf { it.exists() }?.delete() }
-        }
+        deleteMediaPaths(message.imageUrl, message.videoUrl, message.audioUrl)
     }
 
     override fun getImageFormat(): ImageFormat = settings.getImageFormat()
@@ -187,10 +185,11 @@ class DefaultChatRepository(
             ?: throw IOException(stringsContext.getString(R.string.groq_key_required))
         // Vision-запросы идут только через мультимодальную модель — gpt-oss изображения не принимает.
         val model = if (attachedImage != null) VISION_MODEL else settings.getTextModel()
+        val messages = buildTextMessages(prompt, history, attachedImage)
         val body = gson.toJson(
             ChatMessageRequest(
                 model = model,
-                messages = buildTextMessages(prompt, history, attachedImage),
+                messages = messages,
                 temperature = 0.7,
                 max_tokens = TEXT_MAX_TOKENS,
                 stream = true
@@ -201,7 +200,7 @@ class DefaultChatRepository(
         return full
     }
 
-    private fun buildTextMessages(prompt: String, history: List<ChatMessage>, attachedImage: File? = null): List<Message> =
+    private suspend fun buildTextMessages(prompt: String, history: List<ChatMessage>, attachedImage: File? = null): List<Message> =
         buildList {
             add(Message(role = "system", content = TEXT_SYSTEM_PROMPT))
             // При «Повторить»/регенерации исходный запрос уже в истории — не дублируем его в конце.
@@ -221,13 +220,22 @@ class DefaultChatRepository(
             )
         }
 
-    private fun imagePart(file: File): MessagePart {
-        val bytes = file.readBytes()
-        val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
-        return MessagePart(
-            type = "image_url",
-            image_url = ImageUrl(url = "data:image/jpeg;base64,$encoded")
-        )
+    // Vision-модели Groq принимают максимум ~4 МБ base64; большие фото даунскейлим
+    // тем же путём, что и правку по референсу, иначе OOM и отказ запроса.
+    private suspend fun imagePart(file: File): MessagePart = withContext(Dispatchers.IO) {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeFile(file.absolutePath, bounds)
+        val source = downscaleForEdit(file, bounds)
+        try {
+            val bytes = source.readBytes()
+            val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            MessagePart(
+                type = "image_url",
+                image_url = ImageUrl(url = "data:image/jpeg;base64,$encoded")
+            )
+        } finally {
+            if (source != file) source.delete()
+        }
     }
 
     override suspend fun translateToEnglish(text: String): String =
@@ -308,8 +316,12 @@ class DefaultChatRepository(
         "https://api.cloudflare.com/client/v4/accounts/$account/ai/run/$modelId"
 
     private fun deleteMediaFiles(entity: ChatMessageEntity) {
-        listOfNotNull(entity.imageUrl, entity.videoUrl, entity.audioUrl).forEach { path ->
-            runCatching { File(path).takeIf { it.exists() }?.delete() }
+        deleteMediaPaths(entity.imageUrl, entity.videoUrl, entity.audioUrl)
+    }
+
+    private fun deleteMediaPaths(vararg paths: String?) {
+        paths.forEach { path ->
+            runCatching { File(path!!).takeIf { it.exists() }?.delete() }
         }
     }
 

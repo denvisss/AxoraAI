@@ -17,6 +17,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibility as StandaloneAnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -26,6 +27,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
@@ -36,6 +39,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -50,6 +54,7 @@ import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.RocketLaunch
@@ -79,6 +84,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -108,6 +114,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
@@ -141,7 +148,6 @@ fun ChatScreen(
     var showTemplatesDialog by remember { mutableStateOf(false) }
     var pendingTemplate by remember { mutableStateOf<PromptTemplate?>(null) }
     var templateValues by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    var pendingSave by remember { mutableStateOf<ChatMessage?>(null) }
     var viewerIndex by remember { mutableStateOf<Int?>(null) }
 
     var isListening by remember { mutableStateOf(false) }
@@ -150,7 +156,6 @@ fun ChatScreen(
     val focusRequester = remember { FocusRequester() }
 
     val noMicPermission = stringResource(R.string.no_mic_permission)
-    val noStoragePermission = stringResource(R.string.no_storage_permission)
     val voiceUnavailable = stringResource(R.string.voice_unavailable)
 
     val recordAudioLauncher = rememberLauncherForActivityResult(
@@ -174,15 +179,6 @@ fun ChatScreen(
                 }
             }
         }
-    }
-
-    val storageLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        val msg = pendingSave
-        pendingSave = null
-        if (granted && msg != null) performSave(context, scope, msg)
-        else Toast.makeText(context, noStoragePermission, Toast.LENGTH_SHORT).show()
     }
 
     LaunchedEffect(requestInputFocus) {
@@ -235,17 +231,7 @@ fun ChatScreen(
         isListening = false
     }
 
-    fun saveMedia(message: ChatMessage) {
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            pendingSave = message
-            storageLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            return
-        }
-        performSave(context, scope, message)
-    }
+    val saveMedia = rememberMediaSaver()
 
     val imageMessages = uiState.messages.filter { it.isImageMessage() }
 
@@ -259,11 +245,41 @@ fun ChatScreen(
     val bannerVisible = uiState.error != null && uiState.errorType == uiState.selectedType
     val streamingVisible = uiState.selectedType == GenerationType.TEXT &&
         uiState.streamingText != null && uiState.isGenerating
-    LaunchedEffect(lastMessageId, uiState.isGenerating, uiState.selectedType, bannerVisible, uiState.streamingText) {
+
+    // Автоскролл только когда пользователь у низа списка; если прокрутил историю —
+    // не тащим насильно, вместо этого показываем кнопку «вниз».
+    var userScrolledUp by remember { mutableStateOf(false) }
+    var autoScrollTarget by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { listState.firstVisibleItemIndex to listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .collect { (first, last) ->
+                val total = listState.layoutInfo.totalItemsCount
+                userScrolledUp = total > 0 && last != null && last < total - 1
+            }
+    }
+    LaunchedEffect(lastMessageId, uiState.isGenerating, uiState.selectedType, bannerVisible) {
         var count = uiState.messages.size
         if (streamingVisible) count += 1
         if (uiState.isGenerating) count += 1
-        if (count > 0) listState.animateScrollToItem(count - 1)
+        if (count > 0) {
+            autoScrollTarget = count - 1
+            if (!userScrolledUp) listState.animateScrollToItem(count - 1)
+        }
+    }
+    // Во время стриминга тихо следим за низом, только если пользователь у него остался.
+    LaunchedEffect(uiState.streamingText) {
+        if (streamingVisible && !userScrolledUp && autoScrollTarget > 0) {
+            listState.scrollToItem(autoScrollTarget)
+        }
+    }
+
+    fun scrollToBottom() {
+        scope.launch {
+            listState.animateScrollToItem(
+                (uiState.messages.size - 1).coerceAtLeast(0)
+            )
+            userScrolledUp = false
+        }
     }
 
     // Пагинация: у верхней границы списка подгружаем ещё страницу.
@@ -388,8 +404,22 @@ fun ChatScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                         contentPadding = PaddingValues(bottom = 12.dp)
                     ) {
-                        items(uiState.messages, key = { it.id }) { message ->
+                        itemsIndexed(
+                            uiState.messages,
+                            key = { _, message -> message.id }
+                        ) { index, message ->
+                            // Разделитель дней: сообщение первое в списке или от другого дня.
+                            val newDay = index == 0 || isDifferentDay(
+                                previous = if (index > 0) uiState.messages[index - 1] else null,
+                                current = message
+                            )
+                            if (newDay) {
+                                Column {
+                                    DaySeparator(timestamp = message.timestamp)
+                                }
+                            }
                             MessageBubble(
+                                modifier = Modifier.animateItem(),
                                 message = message,
                                 onRetry = { viewModel.retry(message) },
                                 onClick = { actionMessage = message },
@@ -416,19 +446,56 @@ fun ChatScreen(
                 }
             }
 
-            if (isOffline) {
+            // Кнопка «вниз»: видна, когда пользователь прокрутил историю вверх от низа.
+            Box(modifier = Modifier.fillMaxWidth()) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = userScrolledUp && uiState.messages.isNotEmpty(),
+                    enter = fadeIn(tween(150)) + scaleIn(tween(150), initialScale = 0.7f),
+                    exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.7f),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 110.dp)
+                ) {
+                    FilledTonalIconButton(
+                        onClick = { scrollToBottom() },
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.KeyboardArrowDown,
+                            contentDescription = stringResource(R.string.cd_scroll_down),
+                            tint = scheme.primary
+                        )
+                    }
+                }
+            }
+
+            StandaloneAnimatedVisibility(
+                visible = isOffline,
+                enter = fadeIn(tween(150)) + expandVertically(tween(150)),
+                exit = fadeOut(tween(120)) + shrinkVertically(tween(120))
+            ) {
                 OfflineBanner()
             }
 
-            if (uiState.errorType == uiState.selectedType) {
-                uiState.error?.let { error ->
-                    ErrorBanner(error = error, onDismiss = { viewModel.clearError() })
-                }
+            StandaloneAnimatedVisibility(
+                visible = uiState.errorType == uiState.selectedType && uiState.error != null,
+                enter = fadeIn(tween(150)) + expandVertically(tween(150)),
+                exit = fadeOut(tween(120)) + shrinkVertically(tween(120))
+            ) {
+                ErrorBanner(
+                    error = uiState.error.orEmpty(),
+                    onDismiss = { viewModel.clearError() },
+                    // «Повторить» в баннере: перезапускаем последнюю ошибочную генерацию этой вкладки.
+                    onRetry = {
+                        uiState.messages.lastOrNull { it.isError }?.let { viewModel.retry(it) }
+                        viewModel.clearError()
+                    }
+                )
             }
 
             SnackbarHost(hostState = snackbarHostState) { data ->
                 Snackbar(
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(16.dp),
                     containerColor = scheme.primaryContainer,
                     contentColor = scheme.onPrimaryContainer,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -451,7 +518,11 @@ fun ChatScreen(
                 }
             }
 
-            if (uiState.selectedType == GenerationType.IMAGE || uiState.selectedType == GenerationType.TEXT) {
+            StandaloneAnimatedVisibility(
+                visible = uiState.selectedType == GenerationType.IMAGE || uiState.selectedType == GenerationType.TEXT,
+                enter = fadeIn(tween(150)) + expandVertically(tween(150)),
+                exit = fadeOut(tween(120)) + shrinkVertically(tween(120))
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -513,8 +584,8 @@ fun ChatScreen(
             )
 
             if (uiState.selectedType == GenerationType.TEXT) {
-                val pendingAttachment = viewModel.pendingTextAttachment
-                if (pendingAttachment != null) {
+                val pendingAttachment by viewModel.pendingTextAttachment.collectAsState()
+                pendingAttachment?.let { attachment ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -537,7 +608,7 @@ fun ChatScreen(
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Text(
-                                    text = File(pendingAttachment.path).name,
+                                    text = attachment.name,
                                     style = MaterialTheme.typography.labelMedium,
                                     color = scheme.onSurfaceVariant,
                                     maxLines = 1,
@@ -562,6 +633,7 @@ fun ChatScreen(
                 value = inputText,
                 onValueChange = { inputText = it },
                 onSend = {
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     viewModel.sendMessage(inputText)
                     inputText = ""
                 },
@@ -583,56 +655,57 @@ fun ChatScreen(
     }
 
     actionMessage?.let { message ->
-        AlertDialog(
+        ModalBottomSheet(
             onDismissRequest = { actionMessage = null },
-            title = { Text(getGenerationTypeName(message.generationType)) },
-            text = {
-                Column {
-                    if (message.hasMedia()) {
-                        DialogAction(Icons.Rounded.Download, stringResource(R.string.action_save)) {
-                            saveMedia(message); actionMessage = null
-                        }
-                        DialogAction(Icons.Rounded.Share, stringResource(R.string.action_share)) {
-                            shareMedia(context, message); actionMessage = null
-                        }
+            containerColor = scheme.surfaceContainerLow,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        ) {
+            Column(modifier = Modifier.padding(bottom = 24.dp)) {
+                Text(
+                    text = getGenerationTypeName(message.generationType),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                )
+                if (message.hasMedia()) {
+                    SheetAction(Icons.Rounded.Download, stringResource(R.string.action_save)) {
+                        saveMedia(message); actionMessage = null
                     }
-                    if (message.hasMedia() || message.generationType == GenerationType.TEXT) {
-                        if (message.originalPrompt != null) {
-                            DialogAction(Icons.Rounded.Refresh, stringResource(R.string.action_regenerate)) {
-                                viewModel.regenerate(message); actionMessage = null
-                            }
-                        }
+                    SheetAction(Icons.Rounded.Share, stringResource(R.string.action_share)) {
+                        shareMedia(context, message); actionMessage = null
                     }
-                    if (message.text.isNotBlank()) {
-                        DialogAction(Icons.Rounded.ContentCopy, stringResource(R.string.action_copy)) {
-                            copyToClipboard(context, message.textContent ?: message.text)
-                            actionMessage = null
-                        }
+                }
+                if ((message.hasMedia() || message.generationType == GenerationType.TEXT) && message.originalPrompt != null) {
+                    SheetAction(Icons.Rounded.Refresh, stringResource(R.string.action_regenerate)) {
+                        viewModel.regenerate(message); actionMessage = null
                     }
-                    if (message.isImageMessage()) {
-                        DialogAction(Icons.Rounded.AutoAwesome, stringResource(R.string.action_edit_image)) {
-                            editImageMessage = message
-                            editImageText = ""
-                            actionMessage = null
-                        }
-                    }
-                    if (message.isUser()) {
-                        DialogAction(Icons.Rounded.Edit, stringResource(R.string.action_edit)) {
-                            editMessage = message
-                            editText = message.text
-                            actionMessage = null
-                        }
-                    }
-                    DialogAction(Icons.Rounded.Delete, stringResource(R.string.action_delete)) {
-                        viewModel.deleteMessage(message.id)
+                }
+                if (message.text.isNotBlank()) {
+                    SheetAction(Icons.Rounded.ContentCopy, stringResource(R.string.action_copy)) {
+                        copyToClipboard(context, message.textContent ?: message.text)
                         actionMessage = null
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { actionMessage = null }) { Text(stringResource(R.string.close)) }
+                if (message.isImageMessage()) {
+                    SheetAction(Icons.Rounded.AutoAwesome, stringResource(R.string.action_edit_image)) {
+                        editImageMessage = message
+                        editImageText = ""
+                        actionMessage = null
+                    }
+                }
+                if (message.isUser()) {
+                    SheetAction(Icons.Rounded.Edit, stringResource(R.string.action_edit)) {
+                        editMessage = message
+                        editText = message.text
+                        actionMessage = null
+                    }
+                }
+                SheetAction(Icons.Rounded.Delete, stringResource(R.string.action_delete), tint = scheme.error) {
+                    viewModel.deleteMessage(message.id)
+                    actionMessage = null
+                }
             }
-        )
+        }
     }
 
     if (showSearchDialog) {
@@ -666,7 +739,7 @@ fun ChatScreen(
                             else -> searchResults.forEach { message ->
                                 Surface(
                                     onClick = { searchDetail = message },
-                                    shape = RoundedCornerShape(14.dp),
+                                    shape = RoundedCornerShape(16.dp),
                                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -987,6 +1060,35 @@ fun performSave(context: Context, scope: kotlinx.coroutines.CoroutineScope, mess
     }
 }
 
+// Общий flow сохранения с правами WRITE_EXTERNAL_STORAGE (Android 9-): нужно место,
+// где экран запрашивает разрешение и сохраняет после ответа системы.
+@Composable
+fun rememberMediaSaver(): (ChatMessage) -> Unit {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val noStoragePermission = stringResource(R.string.no_storage_permission)
+    var pendingSave by remember { mutableStateOf<ChatMessage?>(null) }
+    val storageLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        val message = pendingSave
+        pendingSave = null
+        if (granted && message != null) performSave(context, scope, message)
+        else Toast.makeText(context, noStoragePermission, Toast.LENGTH_SHORT).show()
+    }
+    return { message ->
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingSave = message
+            storageLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            performSave(context, scope, message)
+        }
+    }
+}
+
 fun shareMedia(context: Context, message: ChatMessage) {
     val file = mediaFile(context, message) ?: return
     if (!SaveImageUtil.share(context, file, message.generationType)) {
@@ -999,7 +1101,6 @@ fun copyToClipboard(context: Context, text: String) {
     clipboard.setPrimaryClip(ClipData.newPlainText("Axora", text))
     Toast.makeText(context, context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
 }
-
 private fun formatDate(timestamp: Long): String =
     SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault()).format(Date(timestamp))
 
@@ -1029,15 +1130,27 @@ private fun StreamingBubble(text: String) {
 }
 
 @Composable
-private fun DialogAction(
+private fun SheetAction(
     icon: ImageVector,
     label: String,
+    tint: Color = MaterialTheme.colorScheme.onSurface,
     onClick: () -> Unit
 ) {
-    TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.size(8.dp))
-        Text(label)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = tint
+        )
     }
 }
 
@@ -1091,22 +1204,30 @@ fun BottomInputBar(
                     // На вкладке изображений — цветная кнопка прикрепления внутри поля,
                     // на остальных — декоративная искра.
                     if (attachImages) {
+                        // Визуально 32dp, но зона касания расширяется до 48dp кликом с паддингом.
                         Box(
                             modifier = Modifier
-                                .padding(start = 4.dp)
-                                .size(32.dp)
-                                .alpha(if (isGenerating) 0.5f else 1f)
-                                .clip(RoundedCornerShape(11.dp))
-                                .background(AxoraGradient)
+                                .padding(start = 2.dp)
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(16.dp))
                                 .clickable(enabled = !isGenerating) { onAttachImage() },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.AddPhotoAlternate,
-                                contentDescription = stringResource(R.string.cd_attach),
-                                tint = Color.White,
-                                modifier = Modifier.size(19.dp)
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .alpha(if (isGenerating) 0.5f else 1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(AxoraGradient),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AddPhotoAlternate,
+                                    contentDescription = stringResource(R.string.cd_attach),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
                         }
                     } else {
                         Box(
@@ -1114,7 +1235,7 @@ fun BottomInputBar(
                                 .padding(start = 4.dp)
                                 .size(32.dp)
                                 .alpha(if (isGenerating) 0.5f else 1f)
-                                .clip(RoundedCornerShape(11.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .background(AxoraGradient),
                             contentAlignment = Alignment.Center
                         ) {

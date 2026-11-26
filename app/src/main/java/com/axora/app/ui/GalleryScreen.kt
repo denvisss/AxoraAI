@@ -1,12 +1,6 @@
 package com.axora.app.ui
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,7 +24,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -48,32 +41,9 @@ fun GalleryScreen(
 ) {
     val images by viewModel.galleryImages.collectAsState()
     var viewerIndex by remember { mutableStateOf<Int?>(null) }
-    var pendingSave by remember { mutableStateOf<ChatMessage?>(null) }
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val scheme = MaterialTheme.colorScheme
-
-    val noStoragePermission = stringResource(R.string.no_storage_permission)
-    val storageLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        val message = pendingSave
-        pendingSave = null
-        if (granted && message != null) performSave(context, scope, message)
-        else Toast.makeText(context, noStoragePermission, Toast.LENGTH_SHORT).show()
-    }
-
-    fun saveImage(message: ChatMessage) {
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            pendingSave = message
-            storageLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-            return
-        }
-        performSave(context, scope, message)
-    }
+    val saveImage = rememberMediaSaver()
 
     Scaffold(
         topBar = {
@@ -165,7 +135,7 @@ private fun GalleryThumb(message: ChatMessage, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(scheme.surfaceContainerHigh)
             .clickable(enabled = file.exists(), onClick = onClick),
         contentAlignment = Alignment.Center

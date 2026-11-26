@@ -6,7 +6,6 @@ build/
 
 # Android
 app/build/
-!app/release/
 .idea/
 *.iml
 *.apk
@@ -30,3 +29,7 @@ app/src/main/java/com/axora/app/data/local/AppDatabase.db
 # Secrets
 local.properties
 keystore.properties
+
+# Misc clutter
+get_preview_url*.png
+reports/
