@@ -3,7 +3,9 @@ package com.axora.app.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.axora.app.R
+import com.axora.app.data.network.ApiErrors
 import com.axora.app.data.repository.ChatRepository
+import com.axora.app.data.repository.UserFacingException
 import com.axora.app.domain.model.ChatMessage
 import com.axora.app.domain.model.ChatUiState
 import com.axora.app.domain.model.GenerationType
@@ -253,14 +255,28 @@ class ChatViewModel(
     }
 
     private fun isTransient(e: Exception): Boolean {
+        if (e is UserFacingException) return false
         if (e is retrofit2.HttpException) {
+            // Дневная квота neurons (429 + 4006) сама не восстановится за секунды —
+            // повтор только зря задерживает понятное сообщение.
+            if (e.code() == 429) {
+                // peek() читает тело, не расходуя буфер: errorMessage() покажет его же.
+                val body = runCatching {
+                    e.response()?.errorBody()?.source()?.peek()?.use { it.readUtf8(64L * 1024) }
+                }.getOrNull().orEmpty()
+                if (ApiErrors.isDailyNeuronLimit(body)) return false
+            }
             return e.code() == 429 || e.code() == 502 || e.code() == 503
         }
         // Стриминг Groq/Cloudflare кидает IOException("HTTP 502: ...") вместо
         // HttpException — код вытаскиваем из текста, иначе повторов не будет.
         if (e is java.io.IOException) {
-            val code = HTTP_CODE_REGEX.find(e.message.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
-            if (code != null) return code == 429 || code == 502 || code == 503
+            val message = e.message.orEmpty()
+            val code = HTTP_CODE_REGEX.find(message)?.groupValues?.get(1)?.toIntOrNull()
+            if (code != null) {
+                if (code == 429 && ApiErrors.isDailyNeuronLimit(message)) return false
+                return code == 429 || code == 502 || code == 503
+            }
         }
         // OCI-код Cloudflare 5028 = модель перегружена, приходит как HTTP-ошибка выше.
         return e is java.net.SocketTimeoutException || e is java.net.ConnectException
@@ -402,6 +418,8 @@ class ChatViewModel(
     }
 
     private fun errorMessage(e: Exception): String {
+        // Текст уже собран (например, «Groq 403 + дневной лимит Cloudflare») — показываем как есть.
+        if (e is UserFacingException) return e.message ?: strings.get(R.string.error_unknown)
         if (e is UnknownHostException || e is ConnectException) return strings.get(R.string.error_offline)
         if (e is SocketTimeoutException) return strings.get(R.string.error_timeout)
         // Прокси отвечает на CONNECT ошибкой — виноват прокси, а не сервис; подсказываем пользователю.
@@ -410,8 +428,23 @@ class ChatViewModel(
         }
         if (e !is HttpException) {
             val detail = e.message
-            return if (detail.isNullOrBlank()) strings.get(R.string.error_unknown)
-            else strings.get(R.string.error_unknown_detail, detail)
+            if (detail.isNullOrBlank()) return strings.get(R.string.error_unknown)
+            // Стриминг Groq/Cloudflare отдаёт код в тексте IOException.
+            val code = HTTP_CODE_REGEX.find(detail)?.groupValues?.get(1)?.toIntOrNull()
+            if (code == 429 && ApiErrors.isDailyNeuronLimit(detail)) {
+                return strings.get(R.string.error_cf_daily_limit)
+            }
+            if (code == 401) return strings.get(R.string.error_invalid_key)
+            if (code == 403) {
+                // Cloudflare и Groq отвечают по-разному: CF — JSON с success/errors,
+                // Groq при регион-блоке — plain «Forbidden» либо HTML-заглушка.
+                return if (detail.contains("\"success\"") || detail.contains("\"errors\"")) {
+                    strings.get(R.string.error_cf_forbidden)
+                } else {
+                    strings.get(R.string.error_groq_forbidden)
+                }
+            }
+            return strings.get(R.string.error_unknown_detail, detail)
         }
         val body = runCatching { e.response()?.errorBody()?.string() }.getOrNull().orEmpty()
         // Cloudflare отклоняет промпт/изображение модерацией — объясняем понятным языком.
@@ -420,7 +453,9 @@ class ChatViewModel(
         }
         return when {
             e.code() == 401 -> strings.get(R.string.error_invalid_key)
+            e.code() == 429 && ApiErrors.isDailyNeuronLimit(body) -> strings.get(R.string.error_cf_daily_limit)
             e.code() == 429 -> strings.get(R.string.error_rate_limited)
+            e.code() == 403 -> strings.get(R.string.error_cf_forbidden)
             e.code() == 503 -> strings.get(R.string.error_service_unavailable)
             body.isBlank() -> strings.get(R.string.error_http, e.code())
             else -> strings.get(R.string.error_http_detail, e.code(), serverMessage(body) ?: body.take(200))

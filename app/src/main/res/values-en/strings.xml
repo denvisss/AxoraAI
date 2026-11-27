@@ -286,6 +286,13 @@
     <string name="error_proxy_connect">The proxy rejects requests (HTTP 400). Turn the proxy off in settings or pick another server.</string>
     <string name="error_flagged">Cloudflare rejected the generation: the prompt or prompt/image combination failed their safety check. Rephrase the prompt or pick a different image.</string>
     <string name="error_unknown_detail">Error: %1$s</string>
+    <string name="error_cf_daily_limit">The daily Cloudflare free limit is used up: 10,000 neurons per day, shared by text and images. Cloudflare may not reset it exactly at 00:00 UTC — it can take up to ~24 hours after the last use.</string>
+    <string name="error_cf_forbidden">Cloudflare rejected the request (403). Make sure the API token has the Workers AI permission and the Account ID is correct.</string>
+    <string name="error_groq_forbidden">Groq rejected the request (403 Forbidden) — usually a region block. Connect Cloudflare keys in settings: text will be generated through it.</string>
+    <string name="error_cf_daily_short">daily limit used up (10,000 neurons/day, shared by text and images)</string>
+    <string name="error_groq_forbidden_short">rejected (403 — likely a region block)</string>
+    <string name="error_text_providers">Text was not generated. Groq: %1$s. Cloudflare: %2$s</string>
+    <string name="error_text_quota">Text is unavailable right now: Groq blocks requests from your region (403), and Cloudflare has used up its daily limit — 10,000 neurons per day, shared by text and images. The limit restores automatically, usually within ~24 hours after the last use.</string>
     <string name="error_empty_file">The server returned an empty file</string>
     <string name="error_no_image">The service did not return an image. Try again</string>
     <string name="edit_source_missing">The original image is unavailable</string>

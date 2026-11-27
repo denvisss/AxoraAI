@@ -286,6 +286,13 @@
     <string name="error_proxy_connect">Прокси не пропускает запросы (HTTP 400). Отключите прокси в настройках или выберите другой сервер.</string>
     <string name="error_flagged">Cloudflare отклонил генерацию: промпт или сочетание промпта с изображением не прошло проверку безопасности на их стороне. Переформулируйте промпт другими словами или выберите другое изображение.</string>
     <string name="error_unknown_detail">Ошибка: %1$s</string>
+    <string name="error_cf_daily_limit">Дневной бесплатный лимит Cloudflare исчерпан: 10 000 нейронов (neurons) в сутки — он общий для текста и картинок. Cloudflare может восстанавливать его не строго в 00:00 UTC, а в течение ~24 часов после последнего использования.</string>
+    <string name="error_cf_forbidden">Cloudflare отклонил запрос (403). Проверьте, что API-токен создан с разрешением Workers AI и Account ID указан верно.</string>
+    <string name="error_groq_forbidden">Groq отклонил запрос (403 Forbidden) — обычно это блокировка по региону. Подключите ключи Cloudflare в настройках: текст будет генерироваться через него.</string>
+    <string name="error_cf_daily_short">дневной лимит исчерпан (10 000 нейронов в сутки, общий для текста и картинок)</string>
+    <string name="error_groq_forbidden_short">отклонён (403 — вероятно, блокировка по региону)</string>
+    <string name="error_text_providers">Текст не сгенерирован. Groq: %1$s. Cloudflare: %2$s</string>
+    <string name="error_text_quota">Текст сейчас недоступен: Groq блокирует запросы из вашего региона (403), а Cloudflare исчерпал дневной лимит — 10 000 нейронов (neurons) в сутки, общий для текста и картинок. Лимит восстановится автоматически, обычно в течение ~24 часов после последнего использования.</string>
     <string name="error_empty_file">Сервер вернул пустой файл</string>
     <string name="error_no_image">Сервис не вернул изображение. Попробуйте ещё раз</string>
     <string name="edit_source_missing">Исходное изображение недоступно</string>

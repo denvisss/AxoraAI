@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import com.axora.app.R
 import com.axora.app.data.local.dao.ChatDao
 import com.axora.app.data.local.entity.ChatMessageEntity
+import com.axora.app.data.network.ApiErrors
 import com.axora.app.data.network.ImageUrl
 import com.axora.app.data.network.ChatMessageRequest
 import com.axora.app.data.network.CloudflareApiService
@@ -182,6 +183,8 @@ class DefaultChatRepository(
             ?: throw IOException(stringsContext.getString(R.string.text_empty))
     }
 
+    @Volatile private var groqBlockedUntilMs = 0L
+
     override suspend fun generateTextStreamed(
         prompt: String,
         history: List<ChatMessage>,
@@ -195,7 +198,11 @@ class DefaultChatRepository(
             return generateTextOnCloudflare(prompt, history, attachedImage, onDelta)
         }
         val apiKey = settings.getGroqApiKey().takeIf { it.isNotBlank() }
-            ?: return generateTextOnCloudflare(prompt, history, null, onDelta)
+        // Регион-блок Groq (403) запоминаем на несколько минут: на каждой реплике
+        // ждать отказ бессмысленно, рабочий провайдер всё равно Cloudflare.
+        if (apiKey == null || System.currentTimeMillis() < groqBlockedUntilMs) {
+            return generateTextOnCloudflare(prompt, history, null, onDelta)
+        }
         val model = settings.getTextModel()
         val messages = buildTextMessages(prompt, history, attachedImage)
         val body = gson.toJson(
@@ -218,14 +225,35 @@ class DefaultChatRepository(
             // 403 Forbidden / блокировка сети / мёртвая модель — пробуем Cloudflare,
             // но только если UI ещё ничего не получил: иначе текст начнётся заново.
             if (emitted) throw e
-            val fallback = runCatching {
+            val forbidden = e.message.orEmpty().contains("HTTP 403")
+            if (forbidden) groqBlockedUntilMs = System.currentTimeMillis() + GROQ_BLOCK_TTL_MS
+            try {
                 generateTextOnCloudflare(prompt, history, null) { updated -> onDelta(updated) }
-            }.getOrNull()
-            if (!fallback.isNullOrBlank()) return fallback
-            throw e
+            } catch (cf: IOException) {
+                throw textProvidersFailure(e, cf, forbidden)
+            }
         }
         if (full.isEmpty()) throw IOException(stringsContext.getString(R.string.text_empty))
         return full
+    }
+
+    // Оба провайдера упали: показываем причины вместе, чтобы было видно, кто именно
+    // отказал (Groq 403 регион + исчерпанный общий лимит Cloudflare — частый случай).
+    private fun textProvidersFailure(groq: IOException, cf: IOException, forbidden: Boolean): IOException {
+        val cfDaily = ApiErrors.isDailyNeuronLimit(cf.message.orEmpty())
+        val cfConfigured = settings.getCfAccountId().isNotBlank() && settings.getCfApiToken().isNotBlank()
+        val message = when {
+            forbidden && cfDaily -> stringsContext.getString(R.string.error_text_quota)
+            forbidden && !cfConfigured -> stringsContext.getString(R.string.error_groq_forbidden)
+            else -> stringsContext.getString(
+                R.string.error_text_providers,
+                if (forbidden) stringsContext.getString(R.string.error_groq_forbidden_short)
+                else groq.message.orEmpty().take(200),
+                if (cfDaily) stringsContext.getString(R.string.error_cf_daily_short)
+                else cf.message.orEmpty().take(200)
+            )
+        }
+        return UserFacingException(message)
     }
 
     // Текст и vision через OpenAI-совместимый эндпоинт Workers AI (vision-модель Groq отключена).
@@ -501,6 +529,7 @@ class DefaultChatRepository(
     companion object {
         private const val TEXT_CONTEXT_MESSAGES = 10
         private const val TEXT_MAX_TOKENS = 2048
+        private const val GROQ_BLOCK_TTL_MS = 5 * 60 * 1000L
         private const val CF_VISION_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct"
         private const val CF_FALLBACK_TEXT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
         private const val TEXT_SYSTEM_PROMPT =
