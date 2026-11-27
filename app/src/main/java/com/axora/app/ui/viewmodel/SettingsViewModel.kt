@@ -33,6 +33,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
+private const val MAX_BACKUP_BYTES = 50L * 1024 * 1024
+
 data class SettingsUiState(
     val groqApiKey: String = "",
     val cfAccountId: String = "",
@@ -280,45 +282,52 @@ class SettingsViewModel(
         type: GenerationType,
         format: ChatExportFormat,
         context: Context,
-        onEmpty: () -> Unit
+        onEmpty: () -> Unit,
+        onError: () -> Unit
     ) {
         viewModelScope.launch {
-            val messages = withContext(Dispatchers.IO) {
-                chatDao.getAllMessagesOnce(type.name).map { entity ->
-                    ChatMessage(
-                        role = if (entity.role == "user") com.axora.app.domain.model.Role.USER else com.axora.app.domain.model.Role.ASSISTANT,
-                        text = entity.text,
-                        imageUrl = entity.imageUrl,
-                        videoUrl = entity.videoUrl,
-                        audioUrl = entity.audioUrl,
-                        textContent = entity.textContent,
-                        originalPrompt = entity.originalPrompt,
-                        translatedPrompt = entity.translatedPrompt,
-                        generationType = GenerationType.valueOf(entity.generationType),
-                        timestamp = entity.timestamp,
-                        isError = entity.isError
-                    )
-                }
-            }
-            withContext(Dispatchers.IO) {
-                when (format) {
-                    ChatExportFormat.TEXT -> {
-                        val body = ChatExport.buildBody(context, messages)
-                        if (body == null) withContext(Dispatchers.Main) { onEmpty() }
-                        else ChatExport.share(context, body)
-                    }
-                    ChatExportFormat.MARKDOWN -> {
-                        val body = ChatExport.buildMarkdown(context, messages)
-                        if (body == null) withContext(Dispatchers.Main) { onEmpty() }
-                        else ChatExport.shareMarkdown(context, body)
-                    }
-                    ChatExportFormat.PDF -> {
-                        val file = ChatExport.buildPdf(context, messages)
-                        if (file == null) withContext(Dispatchers.Main) { onEmpty() }
-                        else ChatExport.sharePdf(context, file)
+            val result = runCatching {
+                val messages = withContext(Dispatchers.IO) {
+                    chatDao.getAllMessagesOnce(type.name).map { entity ->
+                        ChatMessage(
+                            role = if (entity.role == "user") com.axora.app.domain.model.Role.USER else com.axora.app.domain.model.Role.ASSISTANT,
+                            text = entity.text,
+                            imageUrl = entity.imageUrl,
+                            videoUrl = entity.videoUrl,
+                            audioUrl = entity.audioUrl,
+                            textContent = entity.textContent,
+                            originalPrompt = entity.originalPrompt,
+                            translatedPrompt = entity.translatedPrompt,
+                            generationType = GenerationType.valueOf(entity.generationType),
+                            timestamp = entity.timestamp,
+                            isError = entity.isError
+                        )
                     }
                 }
+                // Тяжёлую часть (текст/PDF) готовим в IO, а startActivity —
+                // только на главном потоке: chooser запускается из UI-потока.
+                val action: ((Context) -> Unit)? = withContext(Dispatchers.IO) {
+                    when (format) {
+                        ChatExportFormat.TEXT -> ChatExport.buildBody(context, messages)?.let { body ->
+                            { ctx: Context -> ChatExport.share(ctx, body) }
+                        }
+                        ChatExportFormat.MARKDOWN -> ChatExport.buildMarkdown(context, messages)?.let { body ->
+                            { ctx: Context -> ChatExport.shareMarkdown(ctx, body) }
+                        }
+                        ChatExportFormat.PDF -> ChatExport.buildPdf(context, messages)?.let { file ->
+                            { ctx: Context -> ChatExport.sharePdf(ctx, file) }
+                        }
+                    }
+                }
+                if (action == null) false else {
+                    action(context)
+                    true
+                }
             }
+            result.fold(
+                onSuccess = { shared -> if (!shared) onEmpty() },
+                onFailure = { onError() }
+            )
         }
     }
 
@@ -341,19 +350,24 @@ class SettingsViewModel(
         viewModelScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
+                    val size = context.contentResolver.openFileDescriptor(uri, "r")
+                        ?.use { it.statSize } ?: -1L
+                    if (size > MAX_BACKUP_BYTES) {
+                        throw IOException(context.getString(com.axora.app.R.string.backup_incompatible))
+                    }
                     val json = context.contentResolver.openInputStream(uri)?.use { stream ->
                         stream.readBytes().toString(Charsets.UTF_8)
                     } ?: throw IOException("Cannot open input stream")
-                    gson.fromJson(json, BackupData::class.java)
+                    val backup = gson.fromJson(json, BackupData::class.java)
                         ?: throw IOException("Empty backup")
+                    if (!isCompatibleBackup(backup, json)) {
+                        throw IOException(context.getString(com.axora.app.R.string.backup_incompatible))
+                    }
+                    backup
                 }
             }
             result.onSuccess { backup ->
-                if (backup.version > 1) {
-                    onError("Unsupported version ${backup.version}")
-                } else {
-                    _pendingImport.value = backup
-                }
+                _pendingImport.value = backup
             }.onFailure { onError(it.message.orEmpty()) }
         }
     }
@@ -367,7 +381,10 @@ class SettingsViewModel(
         viewModelScope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
-                    chatDao.restoreMessages(backup.messages.map { it.toEntity() })
+                    val knownTypes = GenerationType.entries.map { it.name }.toSet()
+                    chatDao.restoreMessages(
+                        backup.messages.filter { it.generationType in knownTypes }.map { it.toEntity() }
+                    )
                     templateStore.save(backup.templates)
                     val s = backup.settings
                     settings.setDarkThemeEnabled(s.darkTheme)
@@ -392,12 +409,20 @@ class SettingsViewModel(
         }
     }
 
+    // Бэкапы старого формата писались с обфусцированными R8 ключами (a/b/c) —
+    // такой файл нельзя применять: восстановление затрёт чат пустыми данными.
+    private fun isCompatibleBackup(backup: BackupData, rawJson: String): Boolean = when (backup.version) {
+        BackupData.CURRENT_VERSION -> backup.format == BackupData.BACKUP_FORMAT
+        1 -> rawJson.contains("\"messages\"") && rawJson.contains("\"settings\"")
+        else -> false
+    }
+
     private suspend fun buildBackup(): BackupData = withContext(Dispatchers.IO) {
         val messages = GenerationType.entries.flatMap { type ->
             chatDao.getAllMessagesOnce(type.name)
         }
         BackupData(
-            version = 1,
+            version = BackupData.CURRENT_VERSION,
             exportedAt = System.currentTimeMillis(),
             settings = BackupSettings(
                 darkTheme = settings.isDarkThemeEnabled(),

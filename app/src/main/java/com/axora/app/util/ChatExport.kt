@@ -44,7 +44,15 @@ object ChatExport {
         }
     }
 
+    // Binder ограничивает размер интента ~1 МБ: очень длинную переписку
+    // отправляем файлом, иначе TransactionTooLargeException валит приложение.
+    private const val INLINE_TEXT_LIMIT = 80_000
+
     fun share(context: Context, body: String) {
+        if (body.length > INLINE_TEXT_LIMIT) {
+            shareTextFile(context, body, "text/plain", "axora_chat", "txt")
+            return
+        }
         shareIntent(context, Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_TEXT, body)
@@ -84,9 +92,25 @@ object ChatExport {
     }
 
     fun shareMarkdown(context: Context, markdown: String) {
+        if (markdown.length > INLINE_TEXT_LIMIT) {
+            shareTextFile(context, markdown, "text/markdown", "axora_chat", "md")
+            return
+        }
         shareIntent(context, Intent(Intent.ACTION_SEND).apply {
             type = "text/markdown"
             putExtra(Intent.EXTRA_TEXT, markdown)
+        })
+    }
+
+    private fun shareTextFile(context: Context, content: String, mime: String, baseName: String, ext: String) {
+        val dir = File(context.cacheDir, "export").apply { mkdirs() }
+        val file = File(dir, "${baseName}_${System.currentTimeMillis()}.$ext")
+        file.writeText(content)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        shareIntent(context, Intent(Intent.ACTION_SEND).apply {
+            type = mime
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         })
     }
 

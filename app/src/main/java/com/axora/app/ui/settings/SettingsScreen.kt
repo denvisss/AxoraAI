@@ -196,7 +196,8 @@ fun SettingsScreen(
         if (type == null) return
         viewModel.shareChatExportAs(
             type, format, context,
-            onEmpty = { Toast.makeText(context, R.string.export_empty, Toast.LENGTH_SHORT).show() }
+            onEmpty = { Toast.makeText(context, R.string.export_empty, Toast.LENGTH_SHORT).show() },
+            onError = { Toast.makeText(context, R.string.share_error, Toast.LENGTH_SHORT).show() }
         )
     }
     val scheme = MaterialTheme.colorScheme
@@ -584,10 +585,11 @@ private fun MainSettings(
                             )
                             Text(
                                 text = stringResource(
-                                    when (darkTheme) {
-                                        null -> R.string.theme_system
-                                        false -> R.string.theme_light
-                                        true -> R.string.theme_dark
+                                    when {
+                                        darkTheme == null -> R.string.theme_system
+                                        darkTheme == false -> R.string.theme_light
+                                        amoled -> R.string.theme_amoled_title
+                                        else -> R.string.theme_dark
                                     }
                                 ),
                                 style = MaterialTheme.typography.bodySmall,
@@ -643,9 +645,9 @@ private fun MainSettings(
                     text = { Text(stringResource(R.string.theme_dark)) },
                     leadingIcon = {
                         Icon(
-                            imageVector = if (darkTheme == true) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                            imageVector = if (darkTheme == true && !amoled) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
                             contentDescription = null,
-                            tint = if (darkTheme == true) scheme.primary else scheme.outlineVariant,
+                            tint = if (darkTheme == true && !amoled) scheme.primary else scheme.outlineVariant,
                             modifier = Modifier.size(20.dp)
                         )
                     },

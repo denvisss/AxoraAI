@@ -16,7 +16,8 @@ class MediaStorage(
     }
 
     suspend fun clearGeneratedMedia() = withContext(Dispatchers.IO) {
-        File(context.filesDir, "generated").listFiles()?.forEach { runCatching { it.delete() } }
-        chatDao.clearMediaPaths()
+        val dir = File(context.filesDir, "generated")
+        dir.listFiles()?.forEach { runCatching { it.delete() } }
+        chatDao.clearMediaPaths(dir.absolutePath + "/")
     }
 }

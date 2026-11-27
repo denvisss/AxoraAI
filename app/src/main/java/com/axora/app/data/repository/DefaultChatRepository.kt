@@ -30,13 +30,20 @@ import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import com.google.gson.JsonObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.random.Random
 
 class DefaultChatRepository(
@@ -152,7 +159,7 @@ class DefaultChatRepository(
                 .addFormDataPart("height", height.toString())
                 .addFormDataPart("seed", Random.nextInt(0, Int.MAX_VALUE).toString())
                 .build()
-            val response = cloudflareApiService.runKlein(runUrl(account, ImageModel.DEFAULT.id), "Bearer $token", body)
+            val response = cloudflareApiService.runKlein(runUrl(account, resolveImageModelId(imageModel)), "Bearer $token", body)
             val encoded = response.result?.image?.takeIf { it.isNotBlank() }
                 ?: throw IOException(stringsContext.getString(R.string.error_no_image))
             saveDecodedImage(Base64.decode(encoded, Base64.DEFAULT))
@@ -181,10 +188,15 @@ class DefaultChatRepository(
         onDelta: (String) -> Unit,
         attachedImage: File?
     ): String {
+        // Vision-запросы идут на Cloudflare (Groq отключила llama-4-scout 17.07.2026),
+        // текстовые — на Groq; при недоступности Groq (403/5xx/мёртвая модель) — fallback на Cloudflare.
+        // Без ключа Groq текст тоже можно генерировать: только через Cloudflare.
+        if (attachedImage != null) {
+            return generateTextOnCloudflare(prompt, history, attachedImage, onDelta)
+        }
         val apiKey = settings.getGroqApiKey().takeIf { it.isNotBlank() }
-            ?: throw IOException(stringsContext.getString(R.string.groq_key_required))
-        // Vision-запросы идут только через мультимодальную модель — gpt-oss изображения не принимает.
-        val model = if (attachedImage != null) VISION_MODEL else settings.getTextModel()
+            ?: return generateTextOnCloudflare(prompt, history, null, onDelta)
+        val model = settings.getTextModel()
         val messages = buildTextMessages(prompt, history, attachedImage)
         val body = gson.toJson(
             ChatMessageRequest(
@@ -192,13 +204,132 @@ class DefaultChatRepository(
                 messages = messages,
                 temperature = 0.7,
                 max_tokens = TEXT_MAX_TOKENS,
-                stream = true
+                stream = true,
+                reasoning_effort = if (model.contains("gpt-oss")) "low" else null
             )
         )
-        val full = NetworkModule.streamGroqChat(body, apiKey, onDelta).trim()
+        var emitted = false
+        val full = try {
+            NetworkModule.streamGroqChat(body, apiKey) { updated ->
+                emitted = true
+                onDelta(updated)
+            }.trim()
+        } catch (e: IOException) {
+            // 403 Forbidden / блокировка сети / мёртвая модель — пробуем Cloudflare,
+            // но только если UI ещё ничего не получил: иначе текст начнётся заново.
+            if (emitted) throw e
+            val fallback = runCatching {
+                generateTextOnCloudflare(prompt, history, null) { updated -> onDelta(updated) }
+            }.getOrNull()
+            if (!fallback.isNullOrBlank()) return fallback
+            throw e
+        }
         if (full.isEmpty()) throw IOException(stringsContext.getString(R.string.text_empty))
         return full
     }
+
+    // Текст и vision через OpenAI-совместимый эндпоинт Workers AI (vision-модель Groq отключена).
+    private suspend fun generateTextOnCloudflare(
+        prompt: String,
+        history: List<ChatMessage>,
+        attachedImage: File?,
+        onDelta: (String) -> Unit
+    ): String = withContext(Dispatchers.IO) {
+        if (attachedImage == null) {
+            val account = settings.getCfAccountId().takeIf { it.isNotBlank() }
+            val token = settings.getCfApiToken().takeIf { it.isNotBlank() }
+            if (account == null || token == null) {
+                throw IOException(stringsContext.getString(R.string.text_key_required))
+            }
+            return@withContext generateTextRequest(account, token, prompt, history, null, onDelta)
+        }
+        val (account, token) = requireCloudflareCredentials()
+        generateTextRequest(account, token, prompt, history, attachedImage, onDelta)
+    }
+
+    private suspend fun generateTextRequest(
+        account: String,
+        token: String,
+        prompt: String,
+        history: List<ChatMessage>,
+        attachedImage: File?,
+        onDelta: (String) -> Unit
+    ): String {
+        val model = if (attachedImage != null) CF_VISION_MODEL else cloudflareTextModel(settings.getTextModel())
+        val messages = buildTextMessages(prompt, history, attachedImage)
+        val body = gson.toJson(
+            ChatMessageRequest(
+                model = model,
+                messages = messages,
+                temperature = 0.7,
+                max_tokens = TEXT_MAX_TOKENS,
+                stream = true,
+                reasoning_effort = if (model.contains("gpt-oss")) "low" else null
+            )
+        )
+        val url = "https://api.cloudflare.com/client/v4/accounts/$account/ai/v1/chat/completions"
+        val full = streamOpenAiChat(url, "Bearer $token", body, onDelta)
+        if (full.isEmpty()) throw IOException(stringsContext.getString(R.string.text_empty))
+        return full
+    }
+
+    private suspend fun streamOpenAiChat(url: String, auth: String, requestJson: String, onDelta: (String) -> Unit): String =
+        suspendCancellableCoroutine { continuation ->
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", auth)
+                .header("Accept", "text/event-stream")
+                .post(requestJson.toRequestBody("application/json".toMediaType()))
+                .build()
+            val call = NetworkModule.httpClient.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: IOException) {
+                    if (continuation.isActive) continuation.resumeWithException(e)
+                }
+
+                override fun onResponse(call: okhttp3.Call, response: Response) {
+                    response.use { resp ->
+                        try {
+                            val body = resp.body ?: throw IOException("Empty response body")
+                            if (!resp.isSuccessful) {
+                                val raw = body.string()
+                                throw IOException("HTTP ${resp.code}: ${raw.take(300)}")
+                            }
+                            val full = StringBuilder()
+                            val source = body.source()
+                            while (true) {
+                                val line = source.readUtf8Line() ?: break
+                                if (!line.startsWith("data:")) continue
+                                val payload = line.substring(5).trim()
+                                if (payload == "[DONE]") break
+                                val delta = parseSseDelta(payload)
+                                if (delta.isNotEmpty()) {
+                                    full.append(delta)
+                                    onDelta(full.toString())
+                                }
+                            }
+                            if (continuation.isActive) continuation.resume(full.toString())
+                        } catch (t: Throwable) {
+                            if (continuation.isActive) {
+                                continuation.resumeWithException(t as? IOException ?: IOException(t.message, t))
+                            }
+                        }
+                    }
+                }
+            })
+        }
+
+    private fun parseSseDelta(payload: String): String = runCatching {
+        val root = gson.fromJson(payload, JsonObject::class.java)
+        val choices = root.getAsJsonArray("choices") ?: return ""
+        val first = choices.firstOrNull() as? JsonObject ?: return ""
+        first.getAsJsonObject("delta")
+            ?.get("content")
+            ?.takeIf { it.isJsonPrimitive }
+            ?.asString
+            .orEmpty()
+    }.getOrDefault("")
 
     private suspend fun buildTextMessages(prompt: String, history: List<ChatMessage>, attachedImage: File? = null): List<Message> =
         buildList {
@@ -244,7 +375,7 @@ class DefaultChatRepository(
 
     private suspend fun generateImage(prompt: String, imageModel: String?): File = withContext(Dispatchers.IO) {
         val (account, token) = requireCloudflareCredentials()
-        val model = ImageModel.byId(imageModel.orEmpty()) ?: ImageModel.DEFAULT
+        val modelId = resolveImageModelId(imageModel)
         val (width, height) = ImageSpec.generationSize(settings.getImageFormat())
         val body = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
@@ -253,11 +384,16 @@ class DefaultChatRepository(
             .addFormDataPart("height", height.toString())
             .addFormDataPart("seed", Random.nextInt(0, Int.MAX_VALUE).toString())
             .build()
-        val response = cloudflareApiService.runKlein(runUrl(account, model.id), "Bearer $token", body)
+        val response = cloudflareApiService.runKlein(runUrl(account, modelId), "Bearer $token", body)
         val encoded = response.result?.image?.takeIf { it.isNotBlank() }
             ?: throw IOException(stringsContext.getString(R.string.error_no_image))
         saveDecodedImage(Base64.decode(encoded, Base64.DEFAULT))
     }
+
+    // Живой каталог отдаёт id, которых нет в ImageModel.catalog — принимаем любой
+    // @cf/-идентификатор, статический каталог остаётся только дефолтом.
+    private fun resolveImageModelId(id: String?): String =
+        id?.takeIf { it.startsWith("@cf/") } ?: ImageModel.DEFAULT.id
 
     private fun requireCloudflareCredentials(): Pair<String, String> {
         val account = settings.getCfAccountId().takeIf { it.isNotBlank() }
@@ -355,10 +491,18 @@ class DefaultChatRepository(
         isError = isError
     )
 
+    // Groq-идентификаторы моделей не существуют на Workers AI — маппим на CF-аналоги.
+    private fun cloudflareTextModel(groqId: String): String = when (groqId) {
+        SettingsRepository.TEXT_MODEL_GPT_120B -> "@cf/openai/gpt-oss-120b"
+        SettingsRepository.TEXT_MODEL_GPT_20B -> "@cf/openai/gpt-oss-20b"
+        else -> CF_FALLBACK_TEXT_MODEL
+    }
+
     companion object {
         private const val TEXT_CONTEXT_MESSAGES = 10
-        private const val TEXT_MAX_TOKENS = 1000
-        private const val VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct"
+        private const val TEXT_MAX_TOKENS = 2048
+        private const val CF_VISION_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct"
+        private const val CF_FALLBACK_TEXT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
         private const val TEXT_SYSTEM_PROMPT =
             "You are a helpful assistant. Answer in the language the user writes in. Be concise and accurate."
     }

@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -64,6 +65,12 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestPermission()
     ) { }
 
+    // applicationContext, не Activity: фабрика держит ссылку в ViewModel и
+    // иначе жила бы дольше активити (утечка).
+    private val chatViewModel: ChatViewModel by viewModels {
+        ChatViewModelFactory((application as AxoraApplication).repository, applicationContext)
+    }
+
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(SettingsRepository.wrapLocale(newBase))
     }
@@ -74,12 +81,13 @@ class MainActivity : ComponentActivity() {
 
         val app = application as AxoraApplication
         lifecycleScope.launch { app.updateManager.autoCheckIfDue(BuildConfig.VERSION_NAME) }
-        val chatViewModel: ChatViewModel by viewModels { ChatViewModelFactory(app.repository, this) }
         val settingsViewModel: SettingsViewModel by viewModels {
             SettingsViewModelFactory(app.settingsRepository, app.mediaStorage, app.updateManager, app.chatDao, app.templateStore)
         }
         val templateViewModel: TemplateViewModel by viewModels { TemplateViewModelFactory(app.templateStore) }
-        handleSharedImage(intent, chatViewModel)
+        // При пересоздании (поворот, смена темы) intent шаринга — тот же самый:
+        // повторно копировать картинку не нужно.
+        if (savedInstanceState == null) handleSharedImage(intent, chatViewModel)
         val openPromptFromWidget = intent?.action == QuickPromptWidgetProvider.ACTION_OPEN_PROMPT
 
         // Уведомление «генерация готова»: только когда приложение свёрнуто во время генерации.
@@ -103,6 +111,9 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
+            // Экраны живут в одном Activity: без SaveableStateHolder переход
+            // «чат → настройки → назад» терял черновик и позицию прокрутки.
+            val stateHolder = rememberSaveableStateHolder()
             val settingsState by settingsViewModel.uiState.collectAsState()
             val systemDark = isSystemInDarkTheme()
             var showSettings by rememberSaveable { mutableStateOf(false) }
@@ -153,37 +164,49 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     if (showSettings) {
-                        SettingsScreen(
-                            onBack = { showSettings = false },
-                            viewModel = settingsViewModel,
-                            templateViewModel = templateViewModel,
-                            onLanguageChange = { language ->
-                                settingsViewModel.setAppLanguage(language)
-                                if (Build.VERSION.SDK_INT >= 33) {
-                                    getSystemService(LocaleManager::class.java).applicationLocales =
-                                        LocaleList.forLanguageTags(language)
-                                } else {
-                                    recreate()
+                        stateHolder.SaveableStateProvider("settings") {
+                            SettingsScreen(
+                                onBack = { showSettings = false },
+                                viewModel = settingsViewModel,
+                                templateViewModel = templateViewModel,
+                                onLanguageChange = { language ->
+                                    settingsViewModel.setAppLanguage(language)
+                                    if (Build.VERSION.SDK_INT >= 33) {
+                                        getSystemService(LocaleManager::class.java).applicationLocales =
+                                            LocaleList.forLanguageTags(language)
+                                    } else {
+                                        recreate()
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     } else if (showGallery) {
-                        GalleryScreen(
-                            viewModel = chatViewModel,
-                            onBack = { showGallery = false }
-                        )
+                        stateHolder.SaveableStateProvider("gallery") {
+                            GalleryScreen(
+                                viewModel = chatViewModel,
+                                onBack = { showGallery = false }
+                            )
+                        }
                     } else {
-                        ChatScreen(
-                            viewModel = chatViewModel,
-                            templateViewModel = templateViewModel,
-                            onSettingsClick = { showSettings = true },
-                            onGalleryClick = { showGallery = true },
-                            requestInputFocus = openPromptFromWidget
-                        )
+                        stateHolder.SaveableStateProvider("chat") {
+                            ChatScreen(
+                                viewModel = chatViewModel,
+                                templateViewModel = templateViewModel,
+                                onSettingsClick = { showSettings = true },
+                                onGalleryClick = { showGallery = true },
+                                requestInputFocus = openPromptFromWidget
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleSharedImage(intent, chatViewModel)
     }
 
     // Share target: «Поделиться → Axora» из галереи или браузера.

@@ -33,7 +33,7 @@ class UpdateManagerTest {
     }
 
     @Test
-    fun selectPicksNewestUsableRelease() {
+    fun selectPicksNewestStableRelease() {
         val apk = GitHubAsset(name = "Axora-1.4.0.apk", downloadUrl = "https://example.com/a.apk")
         val releases = listOf(
             release("v1.5.0", draft = true, assets = listOf(apk)),
@@ -41,7 +41,8 @@ class UpdateManagerTest {
             release("v1.3.0", assets = listOf(apk)),
             release("v1.2.0", assets = listOf(apk))
         )
-        assertEquals("v1.4.0", UpdateManager.select(releases, "1.3.0")?.tagName)
+        // Черновики и prerelease обновлением не считаются — остаётся v1.3.0.
+        assertEquals("v1.3.0", UpdateManager.select(releases, "1.2.0")?.tagName)
     }
 
     @Test

@@ -17,13 +17,13 @@ data class TextModel(
             displayName = "GPT-OSS 20B",
             description = "Заметно быстрее"
         )
-        private val LLAMA_70B = TextModel(
-            id = "llama-3.3-70b-versatile",
-            displayName = "Llama 3.3 70B",
+        private val QWEN_27B = TextModel(
+            id = "qwen/qwen3.8-27b",
+            displayName = "Qwen 3.8 27B",
             description = "Универсальная альтернатива"
         )
 
-        val catalog = listOf(GPT_120B, GPT_20B, LLAMA_70B)
+        val catalog = listOf(GPT_120B, GPT_20B, QWEN_27B)
 
         fun byId(id: String): TextModel? = catalog.firstOrNull { it.id == id }
     }

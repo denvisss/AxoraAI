@@ -9,6 +9,7 @@ import androidx.security.crypto.MasterKey
 import com.axora.app.domain.model.ImageFormat
 import com.axora.app.domain.model.ImageModel
 import com.axora.app.domain.model.ProxyConfig
+import com.axora.app.domain.model.TextModel
 import java.util.Locale
 
 class SettingsRepository(private val context: Context) {
@@ -103,8 +104,13 @@ class SettingsRepository(private val context: Context) {
         appPrefs.edit { putBoolean(KEY_AMOLED, enabled) }
     }
 
-    fun getTextModel(): String =
-        appPrefs.getString(KEY_TEXT_MODEL, null)?.takeIf { it.isNotBlank() } ?: DEFAULT_TEXT_MODEL
+    fun getTextModel(): String {
+        // «llama-3.3-70b-versatile» отключена Groq 16.08.2026 — старые сохранённые
+        // выборы мигрируем на живую модель, иначе запрос падает навсегда.
+        // Любой id вне каталога (устаревший/из будущей версии) тоже сбрасываем.
+        val saved = appPrefs.getString(KEY_TEXT_MODEL, null)?.takeIf { it.isNotBlank() }
+        return if (saved == null || TextModel.byId(saved) == null) DEFAULT_TEXT_MODEL else saved
+    }
 
     fun setTextModel(model: String) {
         appPrefs.edit { putString(KEY_TEXT_MODEL, model) }
@@ -213,7 +219,6 @@ class SettingsRepository(private val context: Context) {
 
         const val TEXT_MODEL_GPT_120B = "openai/gpt-oss-120b"
         const val TEXT_MODEL_GPT_20B = "openai/gpt-oss-20b"
-        const val TEXT_MODEL_LLAMA_70B = "llama-3.3-70b-versatile"
         const val DEFAULT_TEXT_MODEL = TEXT_MODEL_GPT_120B
 
         fun wrapLocale(context: Context): Context {

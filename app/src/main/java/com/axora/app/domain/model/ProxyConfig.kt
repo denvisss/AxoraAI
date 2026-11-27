@@ -1,13 +1,14 @@
 package com.axora.app.domain.model
 
+import com.google.gson.annotations.SerializedName
 import java.net.InetSocketAddress
 import java.net.Proxy
 
 data class ProxyConfig(
-    val enabled: Boolean,
-    val scheme: String,
-    val host: String,
-    val port: Int
+    @SerializedName("enabled") val enabled: Boolean,
+    @SerializedName("scheme") val scheme: String,
+    @SerializedName("host") val host: String,
+    @SerializedName("port") val port: Int
 ) {
     fun toJavaProxy(): Proxy {
         val type = if (scheme == SCHEME_SOCKS4 || scheme == SCHEME_SOCKS5) Proxy.Type.SOCKS else Proxy.Type.HTTP

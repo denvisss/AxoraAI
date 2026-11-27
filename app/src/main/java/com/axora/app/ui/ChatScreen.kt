@@ -43,6 +43,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -257,7 +258,19 @@ fun ChatScreen(
                 userScrolledUp = total > 0 && last != null && last < total - 1
             }
     }
-    LaunchedEffect(lastMessageId, uiState.isGenerating, uiState.selectedType, bannerVisible) {
+    // Смена вкладки: мгновенный переход к последнему сообщению без анимации.
+    var initialJumpDone by remember(uiState.selectedType) { mutableStateOf(false) }
+    LaunchedEffect(uiState.selectedType) {
+        initialJumpDone = false
+    }
+    LaunchedEffect(uiState.messages.size, initialJumpDone) {
+        if (!initialJumpDone && uiState.messages.isNotEmpty()) {
+            initialJumpDone = true
+            userScrolledUp = false
+            listState.scrollToItem(uiState.messages.size - 1)
+        }
+    }
+    LaunchedEffect(lastMessageId, uiState.isGenerating, bannerVisible) {
         var count = uiState.messages.size
         if (streamingVisible) count += 1
         if (uiState.isGenerating) count += 1
@@ -453,17 +466,24 @@ fun ChatScreen(
                     enter = fadeIn(tween(150)) + scaleIn(tween(150), initialScale = 0.7f),
                     exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.7f),
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 110.dp)
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 20.dp, bottom = 110.dp)
                 ) {
-                    FilledTonalIconButton(
+                    Surface(
                         onClick = { scrollToBottom() },
-                        modifier = Modifier.size(44.dp)
+                        shape = RoundedCornerShape(20.dp),
+                        color = scheme.surfaceContainerHigh.copy(alpha = 0.55f),
+                        border = BorderStroke(
+                            1.dp,
+                            scheme.outlineVariant.copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.KeyboardArrowDown,
                             contentDescription = stringResource(R.string.cd_scroll_down),
-                            tint = scheme.primary
+                            tint = scheme.onSurfaceVariant,
+                            modifier = Modifier.padding(8.dp)
                         )
                     }
                 }
@@ -541,17 +561,17 @@ fun ChatScreen(
                                 ImageFormat.valueOf(it.id).let(viewModel::setImageFormat)
                             }
                         )
+                        val imageModels = viewModel.availableImageModels()
                         PickerChip(
                             label = stringResource(R.string.picker_model),
-                            value = ImageModel.byId(uiState.imageModel)?.displayName
+                            value = imageModels.firstOrNull { it.id == uiState.imageModel }?.displayName
+                                ?: ImageModel.byId(uiState.imageModel)?.displayName
                                 ?: ImageModel.DEFAULT.displayName,
-                            items = viewModel.availableImageModels().map {
+                            items = imageModels.map {
                                 PickerItem(id = it.id, title = it.displayName, subtitle = it.description)
                             },
                             selectedId = uiState.imageModel,
-                            onSelect = {
-                                viewModel.setImageModel(ImageModel.byId(it.id) ?: ImageModel.DEFAULT)
-                            }
+                            onSelect = { viewModel.setImageModel(it.id) }
                         )
                     } else {
                         PickerChip(

@@ -43,14 +43,23 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE id = :messageId")
     suspend fun getMessageById(messageId: Long): ChatMessageEntity?
 
-    @Query("UPDATE chat_messages SET text = :newText, originalPrompt = :newOriginal WHERE id = :messageId")
+    // textContent — то, что реально уходит в контекст и экспорт; без него правка
+    // не долетала до следующих запросов (использовался старый текст).
+    @Query("UPDATE chat_messages SET text = :newText, textContent = :newText, originalPrompt = :newOriginal WHERE id = :messageId")
     suspend fun updateMessage(messageId: Long, newText: String, newOriginal: String?)
 
     @Query("DELETE FROM chat_messages WHERE id = :messageId")
     suspend fun deleteMessage(messageId: Long)
 
-    @Query("UPDATE chat_messages SET imageUrl = NULL, videoUrl = NULL, audioUrl = NULL")
-    suspend fun clearMediaPaths()
+    // Чистим только ссылки на удалённые файлы: импортированные картинки лежат
+    // в другой папке и должны пережить очистку сгенерированных медиа.
+    @Query(
+        "UPDATE chat_messages SET " +
+            "imageUrl = CASE WHEN imageUrl LIKE :dirPrefix || '%' THEN NULL ELSE imageUrl END, " +
+            "videoUrl = CASE WHEN videoUrl LIKE :dirPrefix || '%' THEN NULL ELSE videoUrl END, " +
+            "audioUrl = CASE WHEN audioUrl LIKE :dirPrefix || '%' THEN NULL ELSE audioUrl END"
+    )
+    suspend fun clearMediaPaths(dirPrefix: String)
 
     @Query("SELECT COUNT(*) FROM chat_messages WHERE generationType = :type AND role = 'assistant' AND isError = 0 AND timestamp >= :since")
     suspend fun countAssistantMessages(type: String, since: Long): Int

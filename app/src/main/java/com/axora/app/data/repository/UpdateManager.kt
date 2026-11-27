@@ -43,7 +43,7 @@ class UpdateManager(
     suspend fun latestRelease(): GitHubRelease? = withContext(Dispatchers.IO) {
         runCatching {
             gitHubApi.releases().firstOrNull { release ->
-                !release.draft && release.assets.any { it.name.endsWith(".apk") }
+                !release.draft && !release.prerelease && release.assets.any { it.name.endsWith(".apk") }
             }
         }.getOrNull()
     }
@@ -104,6 +104,7 @@ class UpdateManager(
         fun select(releases: List<GitHubRelease>, currentVersion: String): GitHubRelease? =
             releases.firstOrNull { release ->
                 !release.draft &&
+                    !release.prerelease &&
                     isNewerVersion(release.tagName, currentVersion) &&
                     release.assets.any { it.name.endsWith(".apk") }
             }

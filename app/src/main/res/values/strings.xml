@@ -129,6 +129,7 @@
     <string name="get_cf_token">Создать токен</string>
     <string name="cf_limits">Бесплатно: около 90 изображений в день</string>
     <string name="cf_key_required">Для генерации изображений подключите бесплатный ключ Cloudflare в настройках</string>
+    <string name="text_key_required">Для генерации текста подключите бесплатный ключ Groq или Cloudflare в настройках</string>
 
     <!-- Settings: proxy -->
     <string name="proxy_title">Прокси-сервер</string>
@@ -175,8 +176,6 @@
     <string name="text_model_gpt120_desc">Самая умная, по умолчанию</string>
     <string name="text_model_gpt20">GPT-OSS 20B</string>
     <string name="text_model_gpt20_desc">Заметно быстрее, ответы проще</string>
-    <string name="text_model_llama70">Llama 3.3 70B</string>
-    <string name="text_model_llama70_desc">Универсальная альтернатива</string>
     <string name="whats_new_title">Что нового — %1$s</string>
     <string name="templates_section">Шаблоны промптов</string>
     <string name="templates_title">Шаблоны</string>
@@ -212,6 +211,7 @@
     <string name="backup_confirm_text">Сообщений: %1$d, шаблонов: %2$d. Текущие история и настройки будут заменены.</string>
     <string name="backup_done">Импортировано</string>
     <string name="backup_error">Ошибка: %1$s</string>
+    <string name="backup_incompatible">файл повреждён или создан несовместимой версией приложения</string>
     <string name="export_done">Файл сохранён</string>
     <string name="language_title">Язык приложения</string>
     <string name="language_ru">Русский</string>

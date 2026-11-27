@@ -1,6 +1,13 @@
 # Gson DTOs: field names are used for (de)serialization, must not be renamed.
 -keep class com.axora.app.data.network.** { *; }
 -keepclassmembers class com.axora.app.data.network.** { *; }
+
+# App models stored as JSON (backup file, prompt templates): field names are JSON keys.
+-keep class com.axora.app.data.repository.BackupData { *; }
+-keep class com.axora.app.data.repository.BackupSettings { *; }
+-keep class com.axora.app.data.repository.BackupMessage { *; }
+-keep class com.axora.app.domain.model.PromptTemplate { *; }
+-keep class com.axora.app.domain.model.ProxyConfig { *; }
 -keepattributes Signature
 -keepattributes *Annotation*
 -keepattributes Exceptions

@@ -1,8 +1,10 @@
 package com.axora.app.domain.model
 
+import com.google.gson.annotations.SerializedName
+
 data class PromptTemplate(
-    val id: Long = 0,
-    val text: String
+    @SerializedName("id") val id: Long = 0,
+    @SerializedName("text") val text: String
 ) {
     val placeholders: List<String>
         get() = PLACEHOLDER.findAll(text).map { it.groupValues[1] }.toList().distinct()

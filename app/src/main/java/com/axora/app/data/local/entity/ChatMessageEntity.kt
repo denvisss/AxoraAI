@@ -1,9 +1,13 @@
 package com.axora.app.data.local.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "chat_messages")
+@Entity(
+    tableName = "chat_messages",
+    indices = [Index(value = ["generationType", "timestamp"])]
+)
 data class ChatMessageEntity(
     val role: String,
     val text: String,

@@ -86,6 +86,8 @@ object NetworkModule {
             val started = System.currentTimeMillis()
             client.newCall(Request.Builder().url(PROXY_TEST_URL).build()).execute().use { response ->
                 val code = response.code
+                // 4xx — прокси работает и что-то отдаёт; ConnectivityCheck всегда 200,
+                // так что 3xx/4xx тоже считаем успехом, неудача только 5xx и обрыв.
                 if (code < 200 || code >= 500) error("HTTP $code")
             }
             System.currentTimeMillis() - started
@@ -116,7 +118,10 @@ object NetworkModule {
                             if (!resp.isSuccessful) {
                                 // Тело сохраняем и при неудачном разборе — иначе причина 400 теряется.
                                 val raw = body.string()
-                                throw IOException(extractGroqError(raw) ?: "HTTP ${resp.code}: ${raw.take(300)}")
+                                // Код всегда в начале сообщения: ChatViewModel по нему решает,
+                                // повторять ли запрос (429/502/503).
+                                val detail = extractGroqError(raw) ?: raw.take(300)
+                                throw IOException("HTTP ${resp.code}: $detail")
                             }
                             val full = StringBuilder()
                             val source = body.source()

@@ -129,6 +129,7 @@
     <string name="get_cf_token">Create token</string>
     <string name="cf_limits">Free: about 90 images per day</string>
     <string name="cf_key_required">Connect a free Cloudflare key in settings to generate images</string>
+    <string name="text_key_required">Connect a free Groq or Cloudflare key in settings to generate text</string>
 
     <!-- Settings: proxy -->
     <string name="proxy_title">Proxy server</string>
@@ -175,8 +176,6 @@
     <string name="text_model_gpt120_desc">Smartest, default</string>
     <string name="text_model_gpt20">GPT-OSS 20B</string>
     <string name="text_model_gpt20_desc">Much faster, simpler answers</string>
-    <string name="text_model_llama70">Llama 3.3 70B</string>
-    <string name="text_model_llama70_desc">Versatile alternative</string>
     <string name="whats_new_title">What\'s new — %1$s</string>
     <string name="templates_section">Prompt templates</string>
     <string name="templates_title">Templates</string>
@@ -212,6 +211,7 @@
     <string name="backup_confirm_text">Messages: %1$d, templates: %2$d. Current history and settings will be replaced.</string>
     <string name="backup_done">Imported</string>
     <string name="backup_error">Error: %1$s</string>
+    <string name="backup_incompatible">the file is corrupted or was created by an incompatible app version</string>
     <string name="export_done">File saved</string>
     <string name="language_title">App language</string>
     <string name="language_ru">Russian</string>

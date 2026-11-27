@@ -108,9 +108,16 @@ class ChatViewModel(
     suspend fun searchHistory(query: String): List<ChatMessage> {
         val sanitized = query.trim()
         if (sanitized.isEmpty()) return emptyList()
-        return runCatching {
-            repository.searchHistory("\"$sanitized\"")
-        }.getOrElse { repository.searchHistory(sanitized) }
+        // Кавычка — синтаксис FTS: экранируем удвоением и всегда шлём фразой,
+        // иначе запрос вида "a OR ( b" роняет MATCH с SQLiteException.
+        val escaped = sanitized.replace("\"", "\"\"")
+        return try {
+            repository.searchHistory("\"$escaped\"")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 
     fun setGenerationType(type: GenerationType) {
@@ -125,10 +132,12 @@ class ChatViewModel(
         repository.setTextModel(modelId)
     }
 
-    fun setImageModel(model: ImageModel) {
-        if (model.id == _uiState.value.imageModel) return
-        _uiState.update { it.copy(imageModel = model.id) }
-        repository.setImageModel(model.id)
+    // id строкой, а не ImageModel: в живом каталоге Cloudflare есть модели,
+    // которых нет в статическом списке — их тоже нужно уметь выбрать.
+    fun setImageModel(modelId: String) {
+        if (modelId == _uiState.value.imageModel) return
+        _uiState.update { it.copy(imageModel = modelId) }
+        repository.setImageModel(modelId)
     }
 
     fun setImageFormat(format: ImageFormat) {
@@ -165,7 +174,9 @@ class ChatViewModel(
         val prompt = message.originalPrompt ?: return
         val type = message.generationType
         if (type in _uiState.value.generatingTypes) return
-        val textHistory = textHistorySnapshot()
+        // Снапшот до регенерации включает сам ответ — исключаем, иначе модель
+        // видит свой прошлый ответ как часть диалога до промпта.
+        val textHistory = textHistorySnapshot().filter { it.id != message.id }
         val attachment = message.imageUrl?.let { File(it) }
         startGeneration(prompt, type, before = {}, produce = { generate(prompt, type, textHistory, attachment) })
     }
@@ -244,6 +255,12 @@ class ChatViewModel(
     private fun isTransient(e: Exception): Boolean {
         if (e is retrofit2.HttpException) {
             return e.code() == 429 || e.code() == 502 || e.code() == 503
+        }
+        // Стриминг Groq/Cloudflare кидает IOException("HTTP 502: ...") вместо
+        // HttpException — код вытаскиваем из текста, иначе повторов не будет.
+        if (e is java.io.IOException) {
+            val code = HTTP_CODE_REGEX.find(e.message.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
+            if (code != null) return code == 429 || code == 502 || code == 503
         }
         // OCI-код Cloudflare 5028 = модель перегружена, приходит как HTTP-ошибка выше.
         return e is java.net.SocketTimeoutException || e is java.net.ConnectException
@@ -439,5 +456,6 @@ class ChatViewModel(
         const val HISTORY_PAGE = 50
         private const val GENERATION_ATTEMPTS = 3
         private const val RETRY_DELAY_MS = 2000L
+        private val HTTP_CODE_REGEX = Regex("HTTP\\s+(\\d{3})")
     }
 }
