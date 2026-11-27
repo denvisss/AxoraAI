@@ -15,6 +15,7 @@ import com.axora.app.data.network.ApiErrors
 import com.axora.app.data.network.ImageUrl
 import com.axora.app.data.network.ChatMessageRequest
 import com.axora.app.data.network.CloudflareApiService
+import com.axora.app.data.network.ImageResponseDecoder
 import com.axora.app.data.network.Message
 import com.axora.app.data.network.MessagePart
 import com.axora.app.data.network.TextApiService
@@ -36,9 +37,11 @@ import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
+import retrofit2.HttpException
 import com.google.gson.JsonObject
 import java.io.File
 import java.io.FileOutputStream
@@ -119,6 +122,7 @@ class DefaultChatRepository(
         val token = settings.getCfApiToken().takeIf { it.isNotBlank() } ?: return@withContext null
         runCatching {
             val remote = NetworkModule.modelCatalogClient.cloudflareImageModels(account, token)
+                .filterNot { it in ImageModel.excludedIds }
             // Порядок статического каталога сохраняем (самая мощная сверху);
             // удаляем модели, которых нет на аккаунте, добавляем в хвост новые.
             val known = ImageModel.catalog.filter { it.id in remote }
@@ -160,10 +164,9 @@ class DefaultChatRepository(
                 .addFormDataPart("height", height.toString())
                 .addFormDataPart("seed", Random.nextInt(0, Int.MAX_VALUE).toString())
                 .build()
-            val response = cloudflareApiService.runKlein(runUrl(account, resolveImageModelId(imageModel)), "Bearer $token", body)
-            val encoded = response.result?.image?.takeIf { it.isNotBlank() }
-                ?: throw IOException(stringsContext.getString(R.string.error_no_image))
-            saveDecodedImage(Base64.decode(encoded, Base64.DEFAULT))
+            val editModelId = resolveImageModelId(imageModel)
+                .takeIf { ImageModel.supportsEditing(it) } ?: ImageModel.EDIT_DEFAULT.id
+            saveDecodedImage(runImageRequest(account, editModelId, token, body))
         } finally {
             if (input != source) input.delete()
         }
@@ -412,10 +415,15 @@ class DefaultChatRepository(
             .addFormDataPart("height", height.toString())
             .addFormDataPart("seed", Random.nextInt(0, Int.MAX_VALUE).toString())
             .build()
+        saveDecodedImage(runImageRequest(account, modelId, token, body))
+    }
+
+    private suspend fun runImageRequest(account: String, modelId: String, token: String, body: RequestBody): ByteArray {
         val response = cloudflareApiService.runKlein(runUrl(account, modelId), "Bearer $token", body)
-        val encoded = response.result?.image?.takeIf { it.isNotBlank() }
+        if (!response.isSuccessful) throw HttpException(response)
+        val payload = response.body() ?: throw IOException(stringsContext.getString(R.string.error_no_image))
+        return ImageResponseDecoder.decode(payload)
             ?: throw IOException(stringsContext.getString(R.string.error_no_image))
-        saveDecodedImage(Base64.decode(encoded, Base64.DEFAULT))
     }
 
     // Живой каталог отдаёт id, которых нет в ImageModel.catalog — принимаем любой
@@ -523,6 +531,7 @@ class DefaultChatRepository(
     private fun cloudflareTextModel(groqId: String): String = when (groqId) {
         SettingsRepository.TEXT_MODEL_GPT_120B -> "@cf/openai/gpt-oss-120b"
         SettingsRepository.TEXT_MODEL_GPT_20B -> "@cf/openai/gpt-oss-20b"
+        SettingsRepository.TEXT_MODEL_QWEN_27B -> "@cf/qwen/qwen3.8-27b"
         else -> CF_FALLBACK_TEXT_MODEL
     }
 

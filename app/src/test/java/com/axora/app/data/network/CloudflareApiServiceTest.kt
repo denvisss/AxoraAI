@@ -1,5 +1,6 @@
 package com.axora.app.data.network
 
+import com.google.gson.Gson
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -10,6 +11,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -58,9 +60,10 @@ class CloudflareApiServiceTest {
             .build()
 
         val response = service.runKlein(url, "Bearer test-placeholder", body)
+        val parsed = Gson().fromJson(response.body()!!.string(), KleinGenerationResponse::class.java)
 
-        assertEquals("AQID", response.result?.image)
-        assertTrue(response.success == true)
+        assertEquals("AQID", parsed.result?.image)
+        assertTrue(parsed.success == true)
 
         assertEquals("POST", capturedRequest.method)
         assertEquals("api.cloudflare.com", capturedRequest.url.host)
@@ -122,9 +125,26 @@ class CloudflareApiServiceTest {
             "Bearer test-placeholder",
             body
         )
+        val parsed = Gson().fromJson(response.body()!!.string(), KleinGenerationResponse::class.java)
 
-        assertTrue(response.success == false)
-        val first = response.errors?.firstOrNull() as? List<*>
+        assertTrue(parsed.success == false)
+        val first = parsed.errors?.firstOrNull() as? List<*>
         assertEquals("Model requires a valid token", first?.get(1))
+    }
+
+    @Test
+    fun decoderReadsBase64JsonPayload() {
+        val body = """{"result":{"image":"AQID"},"success":true}"""
+            .toResponseBody("application/json".toMediaType())
+
+        assertArrayEquals(byteArrayOf(1, 2, 3), ImageResponseDecoder.decode(body))
+    }
+
+    @Test
+    fun decoderPassesBinaryJpegThrough() {
+        val jpeg = byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0x00)
+            .toResponseBody("image/jpeg".toMediaType())
+
+        assertArrayEquals(byteArrayOf(0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0x00), ImageResponseDecoder.decode(jpeg))
     }
 }

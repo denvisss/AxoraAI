@@ -23,8 +23,8 @@ Axora is an Android client for prompt-based media generation: images and text ar
 ## ✨ Features
 
 - **Separate chats per generation type.** Tabs for Image, Text, Video and Audio, each with its own history stream. Video and Audio are marked "Soon" and unavailable until release.
-- **Image generation.** FLUX.2 Klein 4B on Cloudflare Workers AI (free tier), resolutions up to 1536×864. Aspect ratios 1:1, 3:4, 4:3 and 16:9. Instruction-based editing of an existing image (image-to-image) — the source is downscaled on-device and passed as a reference.
-- **Text generation.** Groq free tier with the context of the tab's recent messages. Answers stream in real time and render Markdown (headings, lists, code, quotes). The model is selectable in settings: GPT-OSS 120B (smartest), GPT-OSS 20B (fastest) or Llama 3.3 70B.
+- **Image generation.** FLUX.2 Klein 4B on Cloudflare Workers AI (free tier), resolutions up to 1536×864. Aspect ratios 1:1, 3:4, 4:3 and 16:9. The model is selectable in settings: FLUX.2 Klein 9B/4B, FLUX.2 Dev or FLUX.1 Schnell. Instruction-based editing of an existing image (image-to-image) — the source is downscaled on-device and passed as a reference.
+- **Text generation.** Groq free tier with the context of the tab's recent messages. Answers stream in real time and render Markdown (headings, lists, code, quotes). The model is selectable in settings: GPT-OSS 120B (smartest), GPT-OSS 20B (fastest) or Qwen 3.8 27B.
 - **Image editing with a reference.** Attach your own photo to the chat (paperclip button or "Share → Axora" from any gallery app) and describe what to change — FLUX.2 Klein re-draws it. Quick presets ("Similar", "Style") and an edit action right in the image viewer cover "make something similar" too.
 - **Prompt templates.** Create your own reusable templates with `[placeholders]`, fill them in with a dialog and send.
 - **History search.** Full-text search (FTS) across all tabs — find any message by a couple of words.
@@ -51,7 +51,7 @@ Axora is an Android client for prompt-based media generation: images and text ar
 
 | Type | Model | Provider | Free-tier allowance |
 |---|---|---|---|
-| Image | FLUX.2 Klein 4B | Cloudflare Workers AI | 10,000 Neurons/day ≈ 90 images |
+| Image | FLUX.2 / FLUX.1 (selectable) | Cloudflare Workers AI | 10,000 Neurons/day (shared across models) |
 | Text & translation | GPT-OSS 120B | Groq | ≈ 1,000 messages/day |
 
 Both allowances reset daily (Cloudflare at 00:00 UTC). The app never sends prompts anywhere else.

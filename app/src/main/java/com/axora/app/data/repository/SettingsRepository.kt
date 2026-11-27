@@ -219,6 +219,7 @@ class SettingsRepository(private val context: Context) {
 
         const val TEXT_MODEL_GPT_120B = "openai/gpt-oss-120b"
         const val TEXT_MODEL_GPT_20B = "openai/gpt-oss-20b"
+        const val TEXT_MODEL_QWEN_27B = "qwen/qwen3.8-27b"
         const val DEFAULT_TEXT_MODEL = TEXT_MODEL_GPT_120B
 
         fun wrapLocale(context: Context): Context {
